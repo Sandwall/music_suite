@@ -1,0 +1,17 @@
+.vs/
+.vscode/
+
+x64/
+Debug/
+Release/
+bin/
+obj/
+*.user
+
+*.exe
+*.dll
+*.lib
+*.out
+*.a
+*.so
+*.pdb

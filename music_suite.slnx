@@ -1,0 +1,7 @@
+<Solution>
+  <Configurations>
+    <Platform Name="x64" />
+  </Configurations>
+  <Project Path="music_suite.vcxproj" Id="612520a0-8fc7-49e2-8e1f-42ef2779a432" />
+  <Project Path="vendor/SDL/VisualC/SDL/SDL.vcxproj" Id="81ce8daf-ebb2-4761-8e45-b71abcca8c68" />
+</Solution>
