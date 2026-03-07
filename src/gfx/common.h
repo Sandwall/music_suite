@@ -5,7 +5,6 @@
 struct SDL_Window;
 
 namespace gfx {
-	//
 	struct Color {
 		u8 r, g, b, a;
 
@@ -15,6 +14,7 @@ namespace gfx {
 
 	struct Vertex {
 		f32 x, y;
+		f32 u, v;
 		Color color;
 	};
 
@@ -26,6 +26,6 @@ namespace gfx {
 		virtual void render(struct DrawBatch& batch, bool flush = true) = 0;
 
 		virtual void clear() = 0;
-		virtual void swap_screen() = 0;
+		virtual void swap_screen(SDL_Window* window) = 0;
 	};
 }

@@ -34,6 +34,8 @@ namespace gfx {
 		void start_frame(f32 width, f32 height);
 		void flush(); // sets numVertices to 0
 
+		void add_rect(f32 x, f32 y, f32 w, f32 h, const Color& color);
+
 	private:
 		f32 targetWidth, targetHeight;
 	};
