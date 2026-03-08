@@ -7,5 +7,8 @@
 #define STB_TRUETYPE_IMPLEMENTATION
 #include <stb/stb_truetype.h>
 
+#define CLAY_IMPLEMENTATION
+#include <clay.h>
+
 #include <gl3w.c>
 

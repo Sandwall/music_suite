@@ -7,9 +7,6 @@ struct SDL_Window;
 namespace gfx {
 	struct Color {
 		u8 r, g, b, a;
-
-		Color(u8 red, u8 green, u8 blue, u8 alpha);
-		Color(f32 red = 1.0f, f32 green = 1.0f, f32 blue = 1.0f, f32 alpha = 1.0f);
 	};
 
 	struct Vertex {
@@ -23,9 +20,46 @@ namespace gfx {
 	struct Renderer {
 		virtual void init(SDL_Window* window) = 0;
 		virtual void cleanup() = 0;
-		virtual void render(struct DrawBatch& batch, bool flush = true) = 0;
+		virtual void render(bool flush = true) = 0;
 
 		virtual void clear() = 0;
 		virtual void swap_screen(SDL_Window* window) = 0;
+	};
+
+	// stbrp and stbtt contexts will probably be initialized here
+	// not gonna cleanup these things because program
+	void startup();
+
+	struct TextureAtlas {
+		tds::Slice2<u8> cpuAtlas;  // cpu side texture atlas
+	};
+
+	/* draw_batch - This is probably a good way to do this?
+	* ====================================================
+	*
+	* So essentially, if you want to draw anything to the screen, you go to this guy first.
+	* The renderer then passes the cpu vertex buffer to the gpu, which draws it with a shader
+	*
+	* Note that this batch is also responsible 
+	* 
+	*/
+
+
+	struct DrawBatch {
+		// number of vertices added to the buffer
+		u32 numVertices;
+
+		tds::Slice<Vertex> buffer; // cpu side vertex buffer gets allocated on init
+
+		void init(u32 maxVertexSize);
+		void cleanup();
+
+		void start_frame(f32 width, f32 height);
+		void flush(); // sets numVertices to 0
+
+		void add_rect(f32 x, f32 y, f32 w, f32 h, const Color& color);
+
+	private:
+		f32 targetWidth, targetHeight;
 	};
 }

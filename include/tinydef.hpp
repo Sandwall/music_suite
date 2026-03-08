@@ -8,6 +8,12 @@
 
 #if defined(_WIN32)
 #define USING_WIN32
+
+// grrr... windows defines min() max() macros that replace tim::min and tim::max for some reason
+#define NOMINMAX
+#undef min
+#undef max
+
 #elif defined (__unix__) || (defined (__APPLE__) && defined (__MACH__))
 #define USING_UNIX
 #endif
@@ -117,7 +123,7 @@ namespace tds {
 		}
 	};
 
-	// same thing as the above 
+	// same thing as the above but in 2d
 	template<typename T>
 	struct Slice2 {
 		T* data;

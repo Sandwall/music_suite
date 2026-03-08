@@ -85,13 +85,12 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="src/main.cpp" />
-    <ClCompile Include="src\core\note_item.cpp" />
     <ClCompile Include="src\core\song_player.cpp" />
     <ClCompile Include="src\gfx\common.cpp" />
-    <ClCompile Include="src\gfx\draw_batch.cpp" />
     <ClCompile Include="src\gfx\gl_renderer.cpp" />
     <ClCompile Include="src\libs.cpp" />
     <ClCompile Include="src\core\song.cpp" />
+    <ClCompile Include="src\gfx\window.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="vendor\SDL\VisualC\SDL\SDL.vcxproj">
@@ -99,12 +98,11 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="src\core\note_item.h" />
     <ClInclude Include="src\core\song_player.h" />
     <ClInclude Include="src\gfx\common.h" />
-    <ClInclude Include="src\gfx\draw_batch.h" />
     <ClInclude Include="src\gfx\gl_renderer.h" />
     <ClInclude Include="src\core\song.h" />
+    <ClInclude Include="src\gfx\window.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
