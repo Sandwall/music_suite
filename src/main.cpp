@@ -40,14 +40,6 @@ static inline Clay_Dimensions MeasureText(Clay_StringSlice text, Clay_TextElemen
 	};
 }
 
-// Layout config is just a struct that can be declared statically, or inline
-Clay_ElementDeclaration sidebarItemConfig = {
-	.layout = {
-		.sizing = {.width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_FIXED(50) }
-	},
-	.backgroundColor = COLOR_ORANGE
-};
-
 int main(int argc, char** argv) {
 	mem::init();
 
