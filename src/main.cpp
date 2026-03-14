@@ -1,30 +1,32 @@
 #include <SDL3/SDL.h>
 
-#include "gfx/draw_batch.h"
 #include "gfx/gl_renderer.h"
 #include "gfx/window.h"
+#include "view/ui_builder.h"
+
 #include <clay.h>
 
 #include <stdio.h>
 
-const Clay_Color COLOR_LIGHT = Clay_Color{ 224, 215, 210, 255 };
-const Clay_Color COLOR_RED = Clay_Color{ 168, 66, 28, 255 };
-const Clay_Color COLOR_ORANGE = Clay_Color{ 225, 138, 50, 255 };
+struct Theme {
+	gfx::Color background = { 0.0, 0.0, 0.0, 1.0 };
+} currentTheme;
 
 gfx::Color from_clay_color(const Clay_Color& color) {
 	return gfx::Color{
-		.r = static_cast<u8>(color.r * 255.0f),
-		.g = static_cast<u8>(color.g * 255.0f),
-		.b = static_cast<u8>(color.b * 255.0f),
-		.a = static_cast<u8>(color.a * 255.0f),
+		.r = color.r,
+		.g = color.g,
+		.b = color.b,
+		.a = color.a,
 	};
 }
 
-void HandleClayErrors(Clay_ErrorData errorData) {
+void handle_clay_errors(Clay_ErrorData errorData) {
 	// See the Clay_ErrorData struct for more information
 	printf("%s", errorData.errorText.chars);
 	switch (errorData.errorType) {
 		// etc
+		break;
 	}
 }
 
@@ -47,74 +49,69 @@ Clay_ElementDeclaration sidebarItemConfig = {
 };
 
 int main(int argc, char** argv) {
-	gfx::startup();
+	mem::init();
 
-	//
 	SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO);
-	gfx::Window window;
+	gfx::Window window = { 0 };
 	window.create(1280, 720);
 
 	// renderer init
-	gfx::GL_BatchRenderer renderer;
-	renderer.init(window);
-
+	gfx::GLRenderer renderer = {};
+	renderer.init(window.window);
 
 	// clay init
-	u32 totalMemorySize = Clay_MinMemorySize();
-	Clay_Arena clayArena = Clay_CreateArenaWithCapacityAndMemory(totalMemorySize, malloc(totalMemorySize));
+	view::UiBuilder uiBuilder = {};
+	uiBuilder.init(window);
 
-	// main loop
 	while (window.open) {
 		window.eat_events();
 		if (!window.open) break;
 
 		// main render
-		f32 winWidth = static_cast<f32>(window.width), winHeight = static_cast<f32>(window.height);
-		Clay_SetLayoutDimensions(Clay_Dimensions{ winWidth, winHeight });
-		Clay_SetPointerState(Clay_Vector2 { window.mouseX, window.mouseY }, window.mouseL);
-		Clay_UpdateScrollContainers(true, Clay_Vector2 { window.wheelX, window.wheelY }, window.dt);
+		Clay_RenderCommandArray renderCommands = uiBuilder.layout(window, nullptr);
 
-		Clay_BeginLayout();
+		renderer.start_frame(static_cast<f32>(window.width), static_cast<f32>(window.height));
+		renderer.clear(currentTheme.background);
 
-		// An example of laying out a UI with a fixed width sidebar and flexible width main content
-		CLAY(CLAY_ID("OuterContainer"), { .layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0)}, .padding = CLAY_PADDING_ALL(16), .childGap = 16 }, .backgroundColor = {250,250,255,255} }) {
-			CLAY(CLAY_ID("SideBar"), {
-				.layout = {.layoutDirection = CLAY_TOP_TO_BOTTOM, .sizing = {.width = CLAY_SIZING_FIXED(300), .height = CLAY_SIZING_GROW(0) }, .padding = CLAY_PADDING_ALL(16), .childGap = 16 },
-				.backgroundColor = COLOR_LIGHT
-				}) {
-				CLAY(CLAY_ID("ProfilePictureOuter"), { .layout = {.sizing = {.width = CLAY_SIZING_GROW(0) }, .padding = CLAY_PADDING_ALL(16), .childGap = 16, .childAlignment = {.y = CLAY_ALIGN_Y_CENTER } }, .backgroundColor = COLOR_RED }) {
-					CLAY(CLAY_ID("ProfilePicture"), { .layout = {.sizing = {.width = CLAY_SIZING_FIXED(60), .height = CLAY_SIZING_FIXED(60) }}, .image = {.imageData = &profilePicture } }) {}
-					CLAY_TEXT(CLAY_STRING("Clay - UI Library"), CLAY_TEXT_CONFIG({ .fontSize = 24, .textColor = {255, 255, 255, 255} }));
-				}
-
-				CLAY(CLAY_ID("MainContent"), { .layout = {.sizing = {.width = CLAY_SIZING_GROW(0), .height = CLAY_SIZING_GROW(0) } }, .backgroundColor = COLOR_LIGHT }) {}
-			}
-		}
-
-		Clay_RenderCommandArray renderCommands = Clay_EndLayout();
-		renderer.batch.start_frame(winWidth, winHeight);
-
-		// More comprehensive rendering examples can be found in the renderers/ directory
 		for (int i = 0; i < renderCommands.length; i++) {
 			Clay_RenderCommand* renderCommand = &renderCommands.internalArray[i];
+			const Clay_BoundingBox& box = renderCommand->boundingBox;
 
 			switch (renderCommand->commandType) {
 			case CLAY_RENDER_COMMAND_TYPE_RECTANGLE: {
-				const Clay_BoundingBox& box = renderCommand->boundingBox;
 				const Clay_Color& color = renderCommand->renderData.rectangle.backgroundColor;
 
-				renderer.batch.add_rect(box.x, box.y, box.width, box.height, from_clay_color(color));
+				renderer.add_rect(box.x, box.y, box.width, box.height, from_clay_color(color));
+			} break;
+			case CLAY_RENDER_COMMAND_TYPE_IMAGE: {
+				const Clay_Color& color = renderCommand->renderData.image.backgroundColor;
+				const void* data = renderCommand->renderData.image.imageData;
+
+				// 
+				renderer.render_quads();
+
+				// TODO:
+			} break;
+			case CLAY_RENDER_COMMAND_TYPE_TEXT: {
+				const Clay_Color& color = renderCommand->renderData.text.textColor;
+				const Clay_StringSlice& str = renderCommand->renderData.text.stringContents;
+				const u16 id = renderCommand->renderData.text.fontId;
+				const u16 size = renderCommand->renderData.text.fontSize;
+				const u16 spacing = renderCommand->renderData.text.letterSpacing;
+				const u16 height = renderCommand->renderData.text.lineHeight;
+
+				// TODO:
+
 			} break;
 			}
 		}
 
-
-		renderer.clear();
-		renderer.render();
-		renderer.swap_screen(window);
+		renderer.render_quads();
+		renderer.swap_screen(window.window);
 
 	}
 
+	uiBuilder.cleanup();
 	renderer.cleanup();
 	window.destroy();
 	SDL_Quit();

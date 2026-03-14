@@ -30,9 +30,5 @@ namespace gfx {
 		// Make sure to call this each frame.
 		// It populates the state of this struct + calculates deltaTime
 		void eat_events();
-
-		operator SDL_Window* () const {
-			return window;
-		}
 	};
 }

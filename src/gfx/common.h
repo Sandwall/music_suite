@@ -2,64 +2,78 @@
 
 #include <tinydef.hpp>
 
+#include <stb/stb_rect_pack.h>
+#include <stb/stb_truetype.h>
+
 struct SDL_Window;
 
 namespace gfx {
 	struct Color {
-		u8 r, g, b, a;
+		f32 r, g, b, a;
 	};
 
 	struct Vertex {
-		f32 x, y;
+		f32 x, y, z;
 		f32 u, v;
 		Color color;
 	};
 
-	// NOTE(sand): Sure, vtable lookups might be slow because of cache misses,
-	// but when there's only a few of these per frame, it's negligible
 	struct Renderer {
 		virtual void init(SDL_Window* window) = 0;
 		virtual void cleanup() = 0;
-		virtual void render(bool flush = true) = 0;
+		virtual void render_quads(bool flush = true) = 0;
 
-		virtual void clear() = 0;
+		virtual void clear(const Color& clearColor) = 0;
 		virtual void swap_screen(SDL_Window* window) = 0;
-	};
 
-	// stbrp and stbtt contexts will probably be initialized here
-	// not gonna cleanup these things because program
-	void startup();
+		// API-Agnostic Batch System
+		// =========================
 
-	struct TextureAtlas {
-		tds::Slice2<u8> cpuAtlas;  // cpu side texture atlas
-	};
+		static constexpr u32 QUAD_CAPACITY_BYTES = 1 << 16;
+		static constexpr u32 TEXTCHAR_CAPACITY_BYTES = 1 << 20;
+		static constexpr u32 INDICES_CAPACITY_BYTES = tim::max(QUAD_CAPACITY_BYTES, TEXTCHAR_CAPACITY_BYTES);
+		u32 numDrawnObjects;             // used to count depth of every drawn object
 
-	/* draw_batch - This is probably a good way to do this?
-	* ====================================================
-	*
-	* So essentially, if you want to draw anything to the screen, you go to this guy first.
-	* The renderer then passes the cpu vertex buffer to the gpu, which draws it with a shader
-	*
-	* Note that this batch is also responsible 
-	* 
-	*/
+		tds::Slice<u32> quadIndices;     // cpu side quad buffer
+		                                 // this will stay largely the same through each frame
+		                                 // since we are exclusively drawing quads
 
+		u32 numQuads;                    // used to index quad buffers
+		tds::Slice<Vertex> quadVertices; // cpu side quad vertex buffer
 
-	struct DrawBatch {
-		// number of vertices added to the buffer
-		u32 numVertices;
+		u32 numChars;
+		tds::Slice<Vertex> textVertices;
 
-		tds::Slice<Vertex> buffer; // cpu side vertex buffer gets allocated on init
-
-		void init(u32 maxVertexSize);
-		void cleanup();
-
+		// flushes batch and sets numDrawnObjects to 0
 		void start_frame(f32 width, f32 height);
-		void flush(); // sets numVertices to 0
 
+		// sets numVertices to 0
+		void flush_batch();
+
+		// 
 		void add_rect(f32 x, f32 y, f32 w, f32 h, const Color& color);
+		void add_tex_rect(f32 x, f32 y, f32 u, f32 v, f32 w, f32 h, const Color& color);
 
 	private:
 		f32 targetWidth, targetHeight;
+	};
+
+	struct BakedTextureAtlas {
+		stbtt_fontinfo fonts[4];
+		struct stbtt_pack_context packContext;
+
+		struct stbrp_context rpContext;
+		struct stbrp_node* rpNodes;
+
+		tds::Slice2<u32> cpuAtlas;  // cpu side texture atlas
+
+
+		void init();
+		void cleanup();
+
+		void start_packing();
+		void add_font(const char* path);
+		void add_tex(const char* path);
+		void bake();
 	};
 }

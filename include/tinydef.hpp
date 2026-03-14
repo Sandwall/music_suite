@@ -2,8 +2,12 @@
 
 /* tinydef.hpp - sandwall
  * ======================
- * This is a header that defines shorthand names for common primitives, useful math constants/functions,
- * simple data structures, as well as memory abstraction data structures.
+ * This is a small header/single file library that:
+ *
+ * - defines shorthand names for common primitives
+ * - does the same for useful math constants/functions
+ * - defines simple and reusable data structures
+ * - implements a few memory abstraction data structures
  */
 
 #if defined(_WIN32)
@@ -22,11 +26,15 @@
 #include <assert.h>
 
 // i'm not so keen on these includes, will hopefully find a way to get rid of it later
+#include <stdlib.h> // for malloc, calloc and free
 #include <string.h> // for memset
 #include <math.h>   // for exp and expf
 
 #define TINY_BEGIN_NAMESPACE(name) namespace name {
 #define TINY_END_NAMESPACE }
+
+// Use this macro only on structures/simple objects. Should work similar to Win32 ZeroMemory
+#define TINY_ZERO(zeroTarget) memset((void*)&zeroTarget, 0, sizeof(zeroTarget))
 
 using i8 = int8_t;
 using u8 = uint8_t;
@@ -121,7 +129,43 @@ namespace tds {
 			assert(i >= 0 && i < static_cast<i64>(len));
 			return data[i];
 		}
+
+		// This function allocates a Slice<T> using malloc.
+		// Its purpose is just to be shorthand.
+		static Slice<T> alloc(size_t numElements) {
+			Slice<T> slice = { 0 };
+
+			slice.data = static_cast<T*>(malloc(numElements * sizeof(T)));
+
+			if (slice.data)
+				slice.len = numElements;
+
+			return slice;
+		}
+
+		// This function allocates a Slice<T> using calloc.
+		// Like Slice<T>::alloc, it is just shorthand.
+		static Slice<T> alloc0(size_t numElements) {
+			Slice<T> slice = { 0 };
+
+			slice.data = static_cast<T*>(calloc(numElements, sizeof(T)));
+
+			if (slice.data)
+				slice.len = numElements;
+
+			return slice;
+		}
+
+		static bool free(Slice<T>& slice) {
+			if (slice.data) {
+				::free(slice.data);
+				slice.data = nullptr;
+			}
+
+			slice.len = 0;
+		}
 	};
+
 
 	// same thing as the above but in 2d
 	template<typename T>
@@ -143,10 +187,9 @@ namespace tds {
 	};
 
 	// as opposed to a regular Slice, try not to have this one own the data
-	// this struct has the eat_first function that 
 	struct StringSlice : public Slice<char> {
 		// checks if the start of the string is equal to some other string
-		bool starts_with(const char* other) {
+		bool starts_with(const char* other) const {
 			size_t otherLen = strlen(other);
 			if (len < otherLen) return false;
 
@@ -158,11 +201,16 @@ namespace tds {
 		}
 
 		// basically shifts the start of the string forwards by n characters
-		void eat_first(size_t n) {
+		char eat_first(size_t n) {
 			size_t actualN = tim::min(n, len);
 
+			if (actualN <= 0)
+				return 0;
+
+			char first = data[0];
 			data += actualN;
 			len -= actualN;
+			return first;
 		}
 
 		operator char*() { return data; }
@@ -353,6 +401,21 @@ namespace mem {
 		bool releaseOnDestruct;
 	};
 
+	// Fixed-Size Block/Pool Allocators
+	//
+	template<typename T>
+	struct Pool {
+		tds::Slice<T> memory;
+		Pool<T>* prev;
+		Pool<T>* next;
+	};
+
+	template<typename T>
+	struct PoolAllocator {
+		Pool<T> pool;
+		// TODO: maybe we want some reusable logic
+	};
+
 }
 
 #ifdef TINYDEF_IMPLEMENTATION
@@ -363,7 +426,9 @@ namespace mem {
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #elif defined(USING_UNIX)
-#error Memory abstractions not implemented for Unix-type systems!
+#error Memory abstractions haven't been tested for Unix!
+#include <unistd.h>
+#include <sys/mman.h>
 #else
 #error Memory abstractions not implemented for this platform!
 #endif
@@ -409,24 +474,28 @@ namespace mem {
 	}
 
 #elif defined(USING_UNIX)
+	// NOTE: none of this code has been tested yet
+
 	inline u64 get_page_size() {
-		return 4096;
+		return (u64)sysconf(_SC_PAGE_SIZE);
 	}
 
 	inline void* _reserve(size_t cap) {
-		return nullptr;
+		void* ptr = mmap(nullptr, cap, PROT_NONE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+		return ptr == MAP_FAILED ? nullptr : ptr;
 	}
 
 	inline void* _commit(void* start, size_t size) {
-		return nullptr;
+		return mprotect(start, size, PROT_READ | PROT_WRITE) == 0 ? start : nullptr;
 	}
 
 	inline bool _release(void* region) {
-		return false;
+		return munmap(region, size) == 0;
 	}
 
 	inline bool _decommit(void* region, size_t size) {
-		return false;
+		return madvise(region, size, MADV_DONTNEED) == 0 &&
+			mprotect(region, size, PROT_NONE) == 0;
 	}
 
 #endif

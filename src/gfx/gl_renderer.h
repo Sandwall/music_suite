@@ -16,20 +16,17 @@ namespace gfx {
 		operator GLuint& () { return program; }
 	};
 
-	struct GL_BatchRenderer : public Renderer {
+	struct GLRenderer : public Renderer {
 		SDL_GLContext context = nullptr;
 
-		DrawBatch batch = { };
-
 		GLShader shader;
-		GLuint vbo, vao;
-
+		GLuint vbo = 0, vao = 0;
 
 		void init(SDL_Window* window) override;
 		void cleanup() override;
-		void render(bool flush = true) override;
+		void render_quads(bool flush = true) override;
 
-		void clear() override;
+		void clear(const Color& clearColor) override;
 		void swap_screen(SDL_Window* window) override;
 	};
 }

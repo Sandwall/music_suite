@@ -4,16 +4,15 @@
 
 /* song.h
 *  ======
-*  This file declares the majority of the general-purpose song containers that'll 
-* 
+*  This file declares the majority of the general-purpose song containers
 * 
  */
 
 
 // I think I'll try some things where the the input method determines the frequency
 struct Note {
-	f32 offset;
-	f32 length;
+	f32 offset; // relative to start of NoteItem
+	f32 length; // relative to start of Note
 
 	// maybe for now we can use log2(freq) to determine y position on piano roll
 	f32 freq;
@@ -22,10 +21,10 @@ struct Note {
 // TODO: I think we'll take a linked list approach to this?
 // If you want to 
 struct NoteBlock {
-	NoteBlock* next = nullptr;
+	NoteBlock* next = nullptr; // 8 bytes
+	i32 padding = 0;
 
-	static constexpr size_t NOTE_CAPACITY = 64 - sizeof(NoteBlock*);
-	Note notes[NOTE_CAPACITY];
+	Note notes[84];
 };
 
 struct NoteItem {
@@ -36,8 +35,7 @@ struct NoteItem {
 	// TODO: calculates length by traversing `block`
 	void calculate_length();
 
-	// block
-	NoteBlock block;
+	NoteBlock* block;
 };
 
 // TODO: implement this
@@ -59,8 +57,10 @@ struct Song {
 		i16 noteValue;
 	};
 
+	// Storage
+
 	Bpm bpm;
 	TimeSig timeSig;
-
+	mem::PoolAllocator<NoteBlock> notePool;
 
 };

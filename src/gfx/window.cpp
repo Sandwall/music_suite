@@ -13,6 +13,19 @@ namespace gfx {
 		mouseX = 0.0f; mouseY = 0.0f;
 		wheelX = 0.0f; wheelY = 0.0f;
 
+
+		{
+			SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
+			SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
+			SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 6);
+			SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_CORE);
+
+			int contextFlags;
+			SDL_GL_GetAttribute(SDL_GL_CONTEXT_FLAGS, &contextFlags);
+			contextFlags |= SDL_GL_CONTEXT_DEBUG_FLAG;
+			SDL_GL_SetAttribute(SDL_GL_CONTEXT_FLAGS, contextFlags);
+		}
+
 		window = SDL_CreateWindow("music_suite", width, height, SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
 		SDL_SetWindowMinimumSize(window, 800, 600);
 		SDL_ShowWindow(window);
