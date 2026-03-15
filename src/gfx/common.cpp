@@ -13,39 +13,79 @@
 #include <SDL3/SDL_filesystem.h>
 
 namespace gfx {
+
+	//
+	// RENDERER
+	//
+
 	void Renderer::start_frame(f32 width, f32 height) {
 		targetWidth = width;
 		targetHeight = height;
+
+		numDrawnObjects = 0;
 		flush_batch();
 	}
 
-	void Renderer::flush_batch() { numVertices = 0; }
+	void Renderer::flush_batch() {
+		numQuadsAdded = 0;
+		numCharsAdded = 0;
+	}
 
 	// assumes value is in [0, range]
 	f32 to_ndc(f32 value, f32 range) {
 		return ((value / range) - 0.5f) * 2.0f;
 	}
 
-
 	void Renderer::add_rect(f32 x, f32 y, f32 w, f32 h, const Color& color) {
-		Vertex* current = &(quadVertices[numVertices++]);
+		assert((numQuadsAdded * 4) < (quadVertices.len - 4));
+
+		Vertex* current = &(quadVertices[(numQuadsAdded++) * 4]);
+		f32 z = -to_ndc(numDrawnObjects, quadVertices.len + textVertices.len);	// -z forward
 
 		// TL
 		current->x = to_ndc(x, targetWidth);
 		current->y = to_ndc(y, targetHeight);
-		current->z = -to_ndc(numVertices, quadVertices.len);	// -z forward
-
-		current->u = -1.0;
-		current->v = -1.0;
-
+		current->z = z;
+		current->u = 0.0f;
+		current->v = 0.0f;
 		current->color = color;
 
+		current++;
+
+		// BL
+		current->x = to_ndc(x, targetWidth);
+		current->y = to_ndc(y + h, targetHeight);
+		current->z = z;
+		current->u = 0.0f;
+		current->v = 1.0f;
+		current->color = color;
+
+		current++;
+
+		// BR
+		current->x = to_ndc(x + w, targetWidth);
+		current->y = to_ndc(y + h, targetHeight);
+		current->z = z;
+		current->u = 1.0f;
+		current->v = 1.0f;
+		current->color = color;
+
+		current++;
+
+		// TR
+		current->x = to_ndc(x + w, targetWidth);
+		current->y = to_ndc(y, targetHeight);
+		current->z = z;
+		current->u = 1.0f;
+		current->v = 0.0f;
+		current->color = color;
+
+		numDrawnObjects++;
 	}
 
-	void Renderer::add_tex_rect(f32 x, f32 y, f32 u, f32 v, f32 w, f32 h, const Color& color) {
-		assert((numVertices + 6) < quadVertices.len);
-
-	}
+	//
+	// BAKED TEXTURE ATLAS
+	//
 
 	static constexpr size_t ATLAS_ALLOC_SIZE = 1024;
 	void BakedTextureAtlas::init() {

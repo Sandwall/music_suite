@@ -8,6 +8,11 @@
 struct SDL_Window;
 
 namespace gfx {
+	struct Rect {
+		f32 x, y;
+		f32 w, h;
+	};
+
 	struct Color {
 		f32 r, g, b, a;
 	};
@@ -29,20 +34,18 @@ namespace gfx {
 		// API-Agnostic Batch System
 		// =========================
 
-		static constexpr u32 QUAD_CAPACITY_BYTES = 1 << 16;
-		static constexpr u32 TEXTCHAR_CAPACITY_BYTES = 1 << 20;
-		static constexpr u32 INDICES_CAPACITY_BYTES = tim::max(QUAD_CAPACITY_BYTES, TEXTCHAR_CAPACITY_BYTES);
-		u32 numDrawnObjects;             // used to count depth of every drawn object
+		static constexpr u32 MAX_QUADS_IN_ONE_DRAW = 1 << 14;
+		static constexpr u32 INDICES_CAPACITY = MAX_QUADS_IN_ONE_DRAW * 6;
+		static constexpr u32 INDICES_ALLOC_SIZE = INDICES_CAPACITY * sizeof(u32);
+		static constexpr u32 VERTICES_CAPACITY = MAX_QUADS_IN_ONE_DRAW * 4;
+		static constexpr u32 VERTICES_ALLOC_SIZE = VERTICES_CAPACITY * sizeof(Vertex);
 
-		tds::Slice<u32> quadIndices;     // cpu side quad buffer
-		                                 // this will stay largely the same through each frame
-		                                 // since we are exclusively drawing quads
+		u32 numDrawnObjects;                  // used to count depth of every drawn object
 
-		u32 numQuads;                    // used to index quad buffers
-		tds::Slice<Vertex> quadVertices; // cpu side quad vertex buffer
-
-		u32 numChars;
-		tds::Slice<Vertex> textVertices;
+		u32 numQuadsAdded;                    // used to index quad buffers
+		tds::Slice<Vertex> quadVertices;      // cpu side quad vertex buffer
+		u32 numCharsAdded;                    // same as above
+		tds::Slice<Vertex> textVertices;      // ...
 
 		// flushes batch and sets numDrawnObjects to 0
 		void start_frame(f32 width, f32 height);
@@ -50,11 +53,12 @@ namespace gfx {
 		// sets numVertices to 0
 		void flush_batch();
 
-		// 
-		void add_rect(f32 x, f32 y, f32 w, f32 h, const Color& color);
-		void add_tex_rect(f32 x, f32 y, f32 u, f32 v, f32 w, f32 h, const Color& color);
+		// draws a plain colored rect
+		void add_rect(f32 x, f32 y, f32 w, f32 h, const Color& color = { 1.0f, 1.0f, 1.0f, 1.0f });
 
-	private:
+		// TODO: draws a colored rect with specified source uv coordinates
+		void add_rect(Rect destination, Rect source, const Color& color = { 1.0f, 1.0f, 1.0f, 1.0f });
+	protected:
 		f32 targetWidth, targetHeight;
 	};
 
@@ -66,7 +70,6 @@ namespace gfx {
 		struct stbrp_node* rpNodes;
 
 		tds::Slice2<u32> cpuAtlas;  // cpu side texture atlas
-
 
 		void init();
 		void cleanup();

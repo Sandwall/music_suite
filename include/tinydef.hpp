@@ -156,7 +156,7 @@ namespace tds {
 			return slice;
 		}
 
-		static bool free(Slice<T>& slice) {
+		static void free(Slice<T>& slice) {
 			if (slice.data) {
 				::free(slice.data);
 				slice.data = nullptr;

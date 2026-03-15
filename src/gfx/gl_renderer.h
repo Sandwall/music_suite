@@ -20,7 +20,7 @@ namespace gfx {
 		SDL_GLContext context = nullptr;
 
 		GLShader shader;
-		GLuint vbo = 0, vao = 0;
+		GLuint vbo = 0, vao = 0, ibo = 0;
 
 		void init(SDL_Window* window) override;
 		void cleanup() override;

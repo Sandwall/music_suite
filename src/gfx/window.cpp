@@ -13,7 +13,6 @@ namespace gfx {
 		mouseX = 0.0f; mouseY = 0.0f;
 		wheelX = 0.0f; wheelY = 0.0f;
 
-
 		{
 			SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
 			SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 4);
@@ -42,7 +41,7 @@ namespace gfx {
 		dt = 1.0f / 60.0f; // TODO: actually calculate dt
 
 		SDL_Event ev;
-		while (0 != SDL_PollEvent(&ev)) {
+		while (SDL_PollEvent(&ev)) {
 			switch (ev.type) {
 
 			case SDL_EVENT_WINDOW_CLOSE_REQUESTED: {

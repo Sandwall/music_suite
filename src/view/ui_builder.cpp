@@ -36,10 +36,28 @@ namespace view {
 		Clay_BeginLayout();
 
 		CLAY({
-			.id = CLAY_ID("OuterContainer"),
-			.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0)}, .padding = CLAY_PADDING_ALL(16), .childGap = 16},
-			.backgroundColor = {250,250,255,255}
+	.id = CLAY_ID("OuterContainer"),
+	.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0)}, .padding = CLAY_PADDING_ALL(16), .childGap = 16},
+	.backgroundColor = {250, 250, 255, 255}
 			}) {
+			CLAY({
+				.id = CLAY_ID("InnerContainer"),
+				.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0)}, .padding = CLAY_PADDING_ALL(8), .childGap = 8},
+				.backgroundColor = {200, 200, 255, 255}
+				}) {
+				CLAY({
+					.id = CLAY_ID("QuadA"),
+					.layout = {.sizing = {CLAY_SIZING_FIXED(100), CLAY_SIZING_FIXED(100)}},
+					.backgroundColor = {255, 100, 100, 255}
+					}) {
+				}
+				CLAY({
+					.id = CLAY_ID("QuadB"),
+					.layout = {.sizing = {CLAY_SIZING_FIXED(100), CLAY_SIZING_FIXED(100)}},
+					.backgroundColor = {100, 255, 100, 255}
+					}) {
+				}
+			}
 		}
 
 		return Clay_EndLayout();

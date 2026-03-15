@@ -14,10 +14,10 @@ struct Theme {
 
 gfx::Color from_clay_color(const Clay_Color& color) {
 	return gfx::Color{
-		.r = color.r,
-		.g = color.g,
-		.b = color.b,
-		.a = color.a,
+		.r = color.r / 255.0f,
+		.g = color.g / 255.0f,
+		.b = color.b / 255.0f,
+		.a = color.a / 255.0f,
 	};
 }
 
@@ -73,13 +73,14 @@ int main(int argc, char** argv) {
 			case CLAY_RENDER_COMMAND_TYPE_RECTANGLE: {
 				const Clay_Color& color = renderCommand->renderData.rectangle.backgroundColor;
 
+				// TODO: the clay example doesn't render properly, it's a bit weird, ned to fix
 				renderer.add_rect(box.x, box.y, box.width, box.height, from_clay_color(color));
 			} break;
 			case CLAY_RENDER_COMMAND_TYPE_IMAGE: {
 				const Clay_Color& color = renderCommand->renderData.image.backgroundColor;
 				const void* data = renderCommand->renderData.image.imageData;
 
-				// 
+				// render all available stuff so that we can switch textures
 				renderer.render_quads();
 
 				// TODO:

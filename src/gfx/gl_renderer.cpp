@@ -15,8 +15,9 @@ out vec2 uv;
 out vec4 vertexCol;
 
 void main() {
-	vertexCol = inCol;
 	gl_Position = vec4(inPos, 1.0);
+	uv = inUv;
+	vertexCol = inCol;
 }
 )";
 
@@ -28,11 +29,19 @@ in vec2 uv;
 in vec4 vertexCol;
 
 void main() {
-	FragColor = vec4(1.0);
+	vec2 user = uv;
+	user.x = 1.0;
+	user.y *= uv.x * user.x;
+	FragColor = vertexCol;
 }
 )";
 
 namespace gfx {
+	
+	//
+	// HELPERS
+	//
+
 	void print_shader_compile_status(GLuint shader) {
 		GLint success;
 		char logBuffer[512];
@@ -91,6 +100,10 @@ namespace gfx {
 			case GL_DEBUG_SEVERITY_NOTIFICATION: fprintf(stderr, "Severity: notification"); break;
 		} fprintf(stderr, "\n\n");
 	}
+	
+	//
+	// GL SHADER
+	//
 
 	bool GLShader::compile(const char* vs, const char* fs) {
 		destroy();
@@ -124,7 +137,10 @@ namespace gfx {
 		}
 	}
 
-	constexpr size_t MAX_VERTEX_SIZE = 8192;
+	//
+	// GL RENDERER
+	//
+
 
 	void GLRenderer::init(SDL_Window* window) {
 		cleanup();
@@ -138,8 +154,7 @@ namespace gfx {
 		{
 			int flags;
 			SDL_GL_GetAttribute(SDL_GL_CONTEXT_FLAGS, &flags);
-			if (flags & SDL_GL_CONTEXT_DEBUG_FLAG)
-			{
+			if (flags & SDL_GL_CONTEXT_DEBUG_FLAG) {
 				glEnable(GL_DEBUG_OUTPUT);
 				glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS);
 				glDebugMessageCallback(print_debug_output, nullptr);
@@ -147,12 +162,32 @@ namespace gfx {
 			}
 		}
 
-		quadVertices.len = MAX_VERTEX_SIZE;
-		quadVertices.data = static_cast<Vertex*>(malloc(MAX_VERTEX_SIZE * sizeof(Vertex)));
+		// allocate cpu size buffers
+		quadVertices = tds::Slice<Vertex>::alloc(VERTICES_CAPACITY);
+		textVertices = tds::Slice<Vertex>::alloc(VERTICES_CAPACITY);
 
 		{	// init buffers and vertex attributes
 			glGenBuffers(1, &vbo);
 			glBindBuffer(GL_ARRAY_BUFFER, vbo);
+			glBufferData(GL_ARRAY_BUFFER, VERTICES_ALLOC_SIZE, nullptr, GL_DYNAMIC_DRAW);
+
+			glGenBuffers(1, &ibo);
+			glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
+			tds::Slice<u32> quadIndices = tds::Slice<u32>::alloc(INDICES_CAPACITY);
+			for (u32 i = 0; i < quadIndices.len / 6; i++) {
+				// Assuming vertices are laid out in TL BL BR TR order
+				const u32 firstIndexIndex = i * 6;
+				const u32 firstVertexIndex = i * 4;
+
+				quadIndices[firstIndexIndex + 0] = firstVertexIndex + 0;
+				quadIndices[firstIndexIndex + 1] = firstVertexIndex + 1;
+				quadIndices[firstIndexIndex + 2] = firstVertexIndex + 2;
+				quadIndices[firstIndexIndex + 3] = firstVertexIndex + 0;
+				quadIndices[firstIndexIndex + 4] = firstVertexIndex + 2;
+				quadIndices[firstIndexIndex + 5] = firstVertexIndex + 3;
+			}
+			glBufferData(GL_ELEMENT_ARRAY_BUFFER, INDICES_ALLOC_SIZE, quadIndices.data, GL_STATIC_DRAW);
+			tds::Slice<u32>::free(quadIndices);
 
 			glGenVertexArrays(1, &vao);
 			glBindVertexArray(vao);
@@ -178,6 +213,9 @@ namespace gfx {
 			glDeleteBuffers(1, &vbo);
 			vbo = 0;
 
+			glDeleteBuffers(1, &ibo);
+			ibo = 0;
+
 			glDeleteVertexArrays(1, &vao);
 			vao = 0;
 
@@ -185,27 +223,29 @@ namespace gfx {
 			context = nullptr;
 		}
 
-		if (quadVertices.data) {
-			free(quadVertices.data);
-			quadVertices.data = nullptr;
-		}
-
-		quadVertices.len = 0;
-		numVertices = 0;
+		tds::Slice<Vertex>::free(quadVertices);
+		tds::Slice<Vertex>::free(textVertices);
+		
+		numQuadsAdded = 0;
+		numCharsAdded = 0;
 	}
 
 	void GLRenderer::render_quads(bool flush) {
 		glBindBuffer(GL_ARRAY_BUFFER, vbo);
+		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
 		glBindVertexArray(vao);
 		glUseProgram(shader);
 
-		glDrawArrays(GL_TRIANGLES, 0, numVertices);
+		glBufferSubData(GL_ARRAY_BUFFER, 0, numQuadsAdded * 4 * sizeof(Vertex), quadVertices.data);
+
+		glDrawElements(GL_TRIANGLES, numQuadsAdded * 6, GL_UNSIGNED_INT, nullptr);
 
 		if (flush)
 			flush_batch();
 	}
 
 	void GLRenderer::clear(const Color& clearColor) {
+		glViewport(0, 0, targetWidth, targetHeight);
 		glClearColor(clearColor.r, clearColor.g, clearColor.b, clearColor.a);
 		glClearDepthf(1.0);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
