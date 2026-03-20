@@ -1,7 +1,6 @@
-#include <GL/gl3w.h>
-
 #include "gl_renderer.h"
 
+#include <GL/gl3w.h>
 #include <SDL3/SDL_opengl.h>
 #include <stdio.h>
 
@@ -28,11 +27,10 @@ out vec4 FragColor;
 in vec2 uv;
 in vec4 vertexCol;
 
+uniform sampler2D uTexture;
+
 void main() {
-	vec2 user = uv;
-	user.x = 1.0;
-	user.y *= uv.x * user.x;
-	FragColor = vertexCol;
+	FragColor = texture(uTexture, uv) * vertexCol;
 }
 )";
 
@@ -138,9 +136,105 @@ namespace gfx {
 	}
 
 	//
-	// GL RENDERER
+	// GL TEXTURE
 	//
 
+	void get_format_info(int internalFormat, int& dataFormat, int& dataType) {
+		switch (internalFormat) {
+		case GL_R8:
+		case GL_R16:
+		case GL_R16F:
+		case GL_R32F:
+			dataFormat = GL_RED;
+			break;
+		case GL_RG8:
+		case GL_RG16:
+		case GL_RG16F:
+		case GL_RG32F:
+			dataFormat = GL_RG;
+			break;
+		case GL_RGB8:
+		case GL_RGB16:
+		case GL_RGB16F:
+		case GL_RGB32F:
+			dataFormat = GL_RGB;
+			break;
+		case GL_RGBA8:
+		case GL_RGBA16:
+		case GL_RGBA16F:
+		case GL_RGBA32F:
+			dataFormat = GL_RGBA;
+			break;
+		}
+
+		switch (internalFormat) {
+		case GL_R8:
+		case GL_RG8:
+		case GL_RGB8:
+		case GL_RGBA8:
+			dataType = GL_UNSIGNED_BYTE;
+			break;
+		case GL_R16:
+		case GL_RG16:
+		case GL_RGB16:
+		case GL_RGBA16:
+			dataType = GL_UNSIGNED_SHORT;
+			break;
+		case GL_R16F:
+		case GL_RG16F:
+		case GL_RGB16F:
+		case GL_RGBA16F:
+			dataType = GL_HALF_FLOAT;
+			break;
+		case GL_R32F:
+		case GL_RG32F:
+		case GL_RGB32F:
+		case GL_RGBA32F:
+			dataType = GL_FLOAT;
+			break;
+		}
+	}
+
+	void GLTexture::create(i32 w, i32 h, i32 format, const void* data) {
+		destroy();
+
+		width = w;
+		height = h;
+
+		glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, 0);
+
+		glGenTextures(1, &texture);
+		glBindTexture(GL_TEXTURE_2D, texture);
+
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+		int dataFormat, dataType;
+		get_format_info(format, dataFormat, dataType);
+		glTexImage2D(GL_TEXTURE_2D, 0, format, w, h, 0, dataFormat, dataType, data);
+		glBindTexture(GL_TEXTURE_2D, 0);
+
+		loaded = true;
+	}
+
+	void GLTexture::destroy() {
+		width = 0;
+		height = 0;
+		loaded = false;
+
+		if (texture) {
+			glDeleteTextures(1, &texture);
+			texture = 0;
+		}
+	}
+
+	//
+	// GL RENDERER
+	//
 
 	void GLRenderer::init(SDL_Window* window) {
 		cleanup();
@@ -204,6 +298,12 @@ namespace gfx {
 		}
 
 		shader.compile(main_vertexSource, main_fragSource);
+		textureUniformLoc = glGetUniformLocation(shader.program, "uTexture");
+	}
+
+	void GLRenderer::create_textures(const BakedAtlas& bakedAtlas, const FontAtlas& fontAtlas) {
+		mainTexture.create(bakedAtlas.bitmap.width, bakedAtlas.bitmap.height, GL_RGBA8, (void*)bakedAtlas.bitmap.data);
+		fontTexture.create(fontAtlas.bitmap.width, fontAtlas.bitmap.height, GL_R8, (void*)bakedAtlas.bitmap.data);
 	}
 
 	void GLRenderer::cleanup() {
@@ -230,22 +330,46 @@ namespace gfx {
 		numCharsAdded = 0;
 	}
 
-	void GLRenderer::render_quads(bool flush) {
+	void GLRenderer::render(bool flush) {
+		// set state
+		glEnable(GL_DEPTH_TEST);
+		glEnable(GL_BLEND);
+		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
 		glBindBuffer(GL_ARRAY_BUFFER, vbo);
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
 		glBindVertexArray(vao);
 		glUseProgram(shader);
+		
+		glActiveTexture(GL_TEXTURE0);
+		glUniform1i(textureUniformLoc, 0);
 
-		glBufferSubData(GL_ARRAY_BUFFER, 0, numQuadsAdded * 4 * sizeof(Vertex), quadVertices.data);
+		// draw quads
+		if (numQuadsAdded > 0) {
+			glBindTexture(GL_TEXTURE_2D, mainTexture.texture);
+			glBufferSubData(GL_ARRAY_BUFFER, 0, numQuadsAdded * 4 * sizeof(Vertex), quadVertices.data);
+			glDrawElements(GL_TRIANGLES, numQuadsAdded * 6, GL_UNSIGNED_INT, nullptr);
+		}
 
-		glDrawElements(GL_TRIANGLES, numQuadsAdded * 6, GL_UNSIGNED_INT, nullptr);
+		// draw text
+		if (numCharsAdded > 0) {
+			glBindTexture(GL_TEXTURE_2D, fontTexture.texture);
+			glBufferSubData(GL_ARRAY_BUFFER, 0, numCharsAdded * 4 * sizeof(Vertex), textVertices.data);
+			glDrawElements(GL_TRIANGLES, numCharsAdded * 6, GL_UNSIGNED_INT, nullptr);
+		}
 
 		if (flush)
 			flush_batch();
 	}
 
+	void GLRenderer::scissor(i32 x, i32 y, i32 w, i32 h) {
+		glScissor(x, y, w, h);
+	}
+
 	void GLRenderer::clear(const Color& clearColor) {
-		glViewport(0, 0, targetWidth, targetHeight);
+		// TODO: decide if this function is the best place for this
+		glViewport(0, 0, static_cast<GLsizei>(targetWidth), static_cast<GLsizei>(targetHeight));
+
 		glClearColor(clearColor.r, clearColor.g, clearColor.b, clearColor.a);
 		glClearDepthf(1.0);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);

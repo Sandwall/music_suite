@@ -108,7 +108,25 @@ namespace tim {
 
 // TDS = Tiny Data Structures
 namespace tds {
-	// this ministruct allows treating data as a circular buffer
+	// ministruct: static-sized T array
+	template<typename T, u32 Capacity>
+	struct Array {
+		static constexpr u32 length = Capacity;
+		T data[length];
+
+		operator T* () { return data; }
+
+		T& operator[](i64 i) {
+			assert(i >= 0 && i < static_cast<i64>(length));
+			return data[i];
+		}
+
+		void zero() {
+			memset(data, 0, Capacity * sizeof(T));
+		}
+	};
+
+	// ministruct: circular buffer
 	template<typename T>
 	struct RingSlice {
 		T* data;
@@ -119,7 +137,7 @@ namespace tds {
 		}
 	};
 
-	// this ministruct allows treating data as a T array
+	// ministruct: non-stack allocated T array
 	template<typename T>
 	struct Slice {
 		T* data;
@@ -130,8 +148,7 @@ namespace tds {
 			return data[i];
 		}
 
-		// This function allocates a Slice<T> using malloc.
-		// Its purpose is just to be shorthand.
+		// shorthand for allocating a Slice<T> using malloc
 		static Slice<T> alloc(size_t numElements) {
 			Slice<T> slice = { 0 };
 
@@ -143,8 +160,7 @@ namespace tds {
 			return slice;
 		}
 
-		// This function allocates a Slice<T> using calloc.
-		// Like Slice<T>::alloc, it is just shorthand.
+		// shorthand for allocating a Slice<T> using calloc
 		static Slice<T> alloc0(size_t numElements) {
 			Slice<T> slice = { 0 };
 
@@ -156,6 +172,7 @@ namespace tds {
 			return slice;
 		}
 
+		// shorthand for freeing a Slice<T> using free
 		static void free(Slice<T>& slice) {
 			if (slice.data) {
 				::free(slice.data);
@@ -166,8 +183,7 @@ namespace tds {
 		}
 	};
 
-
-	// same thing as the above but in 2d
+	// ministruct: non-stack allocated 2D T array
 	template<typename T>
 	struct Slice2 {
 		T* data;
@@ -184,9 +200,63 @@ namespace tds {
 			assert(idx >= 0 && idx < len);
 			return data[idx];
 		}
+
+		T* get_ptr(i64 x, i64 y) {
+			i64 idx = x + (y * width);
+			assert(idx >= 0 && idx < len);
+			return &data[idx];
+		}
+
+		T& get(i64 x, i64 y) {
+			i64 idx = x + (y * width);
+			assert(idx >= 0 && idx < len);
+			return data[idx];
+		}
+
+		// shorthand for allocating a Slice2<T> using malloc
+		static Slice2<T> alloc(size_t width, size_t height) {
+			Slice2<T> slice = { 0 };
+
+			slice.data = static_cast<T*>(malloc(width * height * sizeof(T)));
+
+			if (slice.data) {
+				slice.width = width;
+				slice.height = height;
+				slice.len = width * height;
+			}
+
+			return slice;
+		}
+
+		// shorthand for allocating a Slice2<T> using calloc
+		static Slice2<T> alloc0(size_t width, size_t height) {
+			Slice2<T> slice = { 0 };
+
+			slice.data = static_cast<T*>(calloc(width * height, sizeof(T)));
+
+			if (slice.data) {
+				slice.width = width;
+				slice.height = height;
+				slice.len = width * height;
+			}
+
+			return slice;
+		}
+
+		// shorthand for freeing a Slice2<T> using free
+		static void free(Slice2<T>& slice) {
+			if (slice.data) {
+				::free(slice.data);
+				slice.data = nullptr;
+			}
+
+			slice.len = 0;
+			slice.width = 0;
+			slice.height = 0;
+		}
 	};
 
-	// as opposed to a regular Slice, try not to have this one own the data
+	// ministruct: as opposed to a regular Slice, try not to have this one own the data
 	struct StringSlice : public Slice<char> {
 		// checks if the start of the string is equal to some other string
 		bool starts_with(const char* other) const {
@@ -216,6 +286,7 @@ namespace tds {
 		operator char*() { return data; }
 	};
 
+	// ministruct: static-sized bitset
 	template<u32 NumBits>
 	struct BitSet {
 		static constexpr u32 SIZE = ((NumBits + 7u) & ~(7u)) / 8;
@@ -243,14 +314,11 @@ namespace tds {
 		bool operator[](u32 i) const { return get(i); }
 	};
 
+	// ministruct: linked list
 	template<typename T>
-	struct LinkedList {
-		struct Node {
-			Node* next;
-			T data;
-		};
-
-		Node start;
+	struct LinkedNode {
+		LinkedNode* next;
+		T data;
 	};
 
 	// simple range struct
@@ -260,7 +328,8 @@ namespace tds {
 		T count;
 	};
 
-	template<u32 Capacity, typename T>
+	// ministruct: static-sized stack
+	template<typename T, u32 Capacity>
 	struct Stack {
 		static constexpr u32 CAPACITY = Capacity;
 		
@@ -272,7 +341,12 @@ namespace tds {
 			size = 0;
 		}
 
-		bool push(T t) {
+		// NOTE: a good pattern would be to use these functions before
+		// popping or pushing to the stack to avoid crashing on an assert
+		bool empty() { return size <= 0; }
+		bool full() { return size >= CAPACITY; }
+
+		void push(T t) {
 			assert(size < CAPACITY);
 			data[size++] = t;
 		}
@@ -282,24 +356,25 @@ namespace tds {
 			return data[size--];
 		}
 
-		T peek(u32 pos) {
+		T peek() {
 			if (size <= 0) return 0;
 			return data[size - 1];
 		}
 	};
 
-	//template<typename T>
-	//struct Stack {
-	//};
-
-	template<u32 NumStates>
+	//
+	//
+	//
+	template<u16 NumStates>
 	struct StateMachine {
-		static constexpr u32 maxStates = NumStates;
+		static constexpr u16 maxStates = NumStates;
 		using StateFunction = void(*)(StateMachine<NumStates>&);
 
-		u32 prevState = 0;
-		u32 state = 0;
-		u32 nextState = 0;
+		// prevState and state are managed by the StateMachine
+		// but nextState should be set by the user to transition state
+		u16 prevState = 0;
+		u16 state = 0;
+		u16 nextState = 0;
 
 		// These can be set to true in case we want to tell the state machine
 		// to call the enter_state or exit_state functions again for some reason
@@ -313,11 +388,9 @@ namespace tds {
 		StateFunction onEnter = nullptr;  // global state enter function
 		StateFunction onExit = nullptr;   // global state exit function
 
-#define ASSERT_STATE_VALIDITY \
-	assert(state < maxStates); \
-	assert(nextState < maxStates);
+#define ASSERT_STATE_VALIDITY assert(state < maxStates); assert(nextState < maxStates);
 
-		void update() {
+		void tick() {
 			// enter_state is called
 			ASSERT_STATE_VALIDITY
 			if (nextState != state || signalEnter) {
@@ -352,8 +425,7 @@ namespace tds {
 	};
 }
 
-// Memory utilities
-
+// MEM = MEMory utilities
 namespace mem {
 	void init();
 	void close();
@@ -363,9 +435,9 @@ namespace mem {
 	// On Memory Arenas:
 	// https://www.rfleury.com/p/untangling-lifetimes-the-arena-allocator
 	struct Arena {
-#define push_struct(ptr, struc) push_data(ptr, sizeof(struc))
 		void alloc(u64 cap = 100000000LL); // 100 megabytes
 		void dealloc();
+		bool allocated() const { return capacity > 0; }
 
 		void clear();
 		void clear_decommit();
@@ -376,10 +448,10 @@ namespace mem {
 		void pop(size_t len);
 		void pop_to(size_t newPos);
 		
-		template <typename T>
-		T* push() { return (T*)push(sizeof(T)); }
-		template <typename T>
-		T* push_zero() { return (T*)push_zero(sizeof(T)); }
+		template <typename T> T* push() { return (T*)push(sizeof(T)); }
+		template <typename T> T* push(size_t numElements) { return (T*)push(sizeof(T) * numElements); }
+		template <typename T> T* push_zero() { return (T*)push_zero(sizeof(T)); }
+		template <typename T> T* push_zero(size_t numElements) { return (T*)push_zero(sizeof(T) * numElements); }
 
 		void* data;
 		size_t pos;
@@ -402,7 +474,7 @@ namespace mem {
 	};
 
 	// Fixed-Size Block/Pool Allocators
-	//
+	// UNFINISHED
 	template<typename T>
 	struct Pool {
 		tds::Slice<T> memory;
@@ -420,8 +492,6 @@ namespace mem {
 
 #ifdef TINYDEF_IMPLEMENTATION
 
-#include <assert.h>
-
 #if defined(USING_WIN32)
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -438,11 +508,10 @@ namespace mem {
 //
 
 namespace mem {
-
 	// 4096 is a common page size, but for it to actually be accurate,
 	// we need to set this using information obtained from the OS in mem::init()
-	u64 pageSize = 4096;
-	u64 round_to_page_size(u64 size) {
+	static u64 pageSize = 4096;
+	static u64 round_to_page_size(u64 size) {
 		u64 rem = size % pageSize;
 		size -= rem;
 		return size + pageSize;
@@ -525,6 +594,8 @@ namespace mem {
 	}
 
 	void Arena::alloc(u64 cap) {
+		pos = 0;
+
 		// we want to reserve a good spot between "too little" and "holy balls that's too much" memory
 		// when we encounter the problem of this actually being too little memory,
 		// we can probably either raise this size, or start chaining Arenas
@@ -539,11 +610,12 @@ namespace mem {
 		// added this, not sure if it's really required
 		clear_decommit();
 		// we can do profiling and testing for that
+		
+		mem::_release(data);
 
 		capacity = 0;
 		data = nullptr;
 
-		mem::_release(data);
 	}
 
 	// This function is called "peek", and while it might make sense for it to be called that

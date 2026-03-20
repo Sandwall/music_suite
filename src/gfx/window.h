@@ -3,8 +3,9 @@
 /* Window
  * ======
  * 
- * Despite being called "Window", we'll be using this struct to aggregate all information the program needs from the Window
- * This includes event handling
+ * Despite being called "Window", we'll be using this struct to aggregate all information
+ * the program needs from the Window.
+ * This includes event handling, frame timing, 
  * 
 */
 

@@ -1,20 +1,16 @@
 # music_suite
+SAND - Sand's Awesome and Nice DAW
 
 # planning
 
 ## renderer
-we'll keep a track of all of the objects that have been drawn each frame
-this is so that we can slap a z coordinate on every image we've drawn
 
-but we'll also store quads and text in two different buffers
-this is so that transparency works when rendering text
+how do I do text???
+right now there's a single vertex buffer that should contain all of the text
+but how do we handle the use of multiple fonts?
 
-you render all of the quads with their depth,
-then render all of the text with their depth.
-and then boom! the text should be obscured by the quads properly
+we could kinda just use a single font for everything, but I really do want to have multiple fonts
 
-but if you want to render any custom image, we'll first render everything we can
-(this inclused text and quads, we're doing this to "clear" the context)
+i think this warrants having the icon/image atlas being separate from the font atlas
+...which is fine!
 
-and then switch the current texture to whatever image we want to render,
-add a single quad

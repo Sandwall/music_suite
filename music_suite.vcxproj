@@ -86,8 +86,9 @@
   <ItemGroup>
     <ClCompile Include="src/main.cpp" />
     <ClCompile Include="src\core\song_player.cpp" />
-    <ClCompile Include="src\gfx\common.cpp" />
+    <ClCompile Include="src\gfx\base_renderer.cpp" />
     <ClCompile Include="src\gfx\gl_renderer.cpp" />
+    <ClCompile Include="src\gfx\texture_atlas.cpp" />
     <ClCompile Include="src\view\ui_builder.cpp" />
     <ClCompile Include="src\libs.cpp" />
     <ClCompile Include="src\core\song.cpp" />
@@ -100,9 +101,12 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\core\song_player.h" />
-    <ClInclude Include="src\gfx\common.h" />
+    <ClInclude Include="src\gfx\base_renderer.h" />
+    <ClInclude Include="src\gfx\common.hpp" />
     <ClInclude Include="src\gfx\gl_renderer.h" />
     <ClInclude Include="src\core\song.h" />
+    <ClInclude Include="src\gfx\texture_atlas.h" />
+    <ClInclude Include="src\view\theme.hpp" />
     <ClInclude Include="src\view\ui_builder.h" />
     <ClInclude Include="src\gfx\window.h" />
   </ItemGroup>

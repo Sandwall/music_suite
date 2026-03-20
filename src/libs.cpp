@@ -10,6 +10,7 @@
 #define STB_TRUETYPE_IMPLEMENTATION
 #include <stb/stb_truetype.h>
 
+#pragma warning(disable : 4244 4305)
 #define CLAY_IMPLEMENTATION
 #include <clay.h>
 
