@@ -31,8 +31,11 @@ namespace gfx {
 	struct GLRenderer : public Renderer {
 		SDL_GLContext context = nullptr;
 
-		GLShader shader;
-		GLint textureUniformLoc;
+		GLShader mainShader;
+		GLint mainTextureLoc;
+
+		GLShader textShader;
+		GLint textTextureLoc;
 
 		GLTexture mainTexture, fontTexture;
 

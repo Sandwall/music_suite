@@ -73,6 +73,8 @@ namespace view {
 		dimensions.height = cursorY;
 
 		// TODO: I think this strategy might need a bit more nuance... it's 5am code...
+		const f32 scale = 1.0f / static_cast<f32>(fontAtlas.oversampling);
+		f32 maxGlyphHeight = 0.0f;
 		for (i32 i = 0; i < text.length; i++) {
 			char current = text.chars[i];
 			if (current > gfx::FontAtlas::CHARS_PER_FONT)
@@ -80,10 +82,15 @@ namespace view {
 
 			if (current == '\n') {
 				cursorX = 0.0f;
-				cursorY += config->fontSize + config->lineHeight;
-			} else {
+				cursorY += maxGlyphHeight + config->lineHeight;
+				maxGlyphHeight = 0.0f;
+			}
+			else {
 				const stbtt_packedchar& packedChar = fontAtlas.packedChars.get(current, config->fontId);
-				cursorX += config->letterSpacing + packedChar.xadvance;
+				f32 width = static_cast<f32>(packedChar.x1 - packedChar.x0) * scale;
+				f32 height = static_cast<f32>(packedChar.y1 - packedChar.y0) * scale;
+				maxGlyphHeight = tim::max(maxGlyphHeight, height);
+				cursorX += config->letterSpacing + (packedChar.xadvance);
 			}
 
 			dimensions.width = tim::max(dimensions.width, cursorY);
@@ -119,14 +126,13 @@ namespace view {
 
 		Clay_BeginLayout();
 
-		CLAY({
-			.id = CLAY_ID("OuterContainer"),
-			.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0)}, .padding = CLAY_PADDING_ALL(16), .childGap = 16},
-			.backgroundColor = {100, 100, 100, 255}
-			}) {
-
-			CLAY_TEXT(CLAY_STRING("Hello! This is some test text!"), CLAY_TEXT_CONFIG({ .textColor = {255, 255, 255, 255}, .fontSize = 12 }));
-		}
+		CLAY_TEXT(CLAY_STRING("Hello! This is some test text!\n I am now testing some newlines!!!"), CLAY_TEXT_CONFIG({ .textColor = {255, 255, 255, 255}, .fontSize = 12 }));
+		//CLAY({
+		//	.id = CLAY_ID("OuterContainer"),
+		//	.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0)}, .padding = CLAY_PADDING_ALL(16), .childGap = 16},
+		//	.backgroundColor = {100, 100, 100, 255}
+		//	}) {
+		//}
 
 		return Clay_EndLayout();
 	}

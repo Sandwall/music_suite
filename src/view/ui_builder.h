@@ -4,6 +4,7 @@
 
 #include "theme.hpp"
 #include "gfx/texture_atlas.h"
+#include "gfx/base_renderer.h"
 
 namespace gfx {
 	struct Window;

@@ -27,16 +27,23 @@ namespace gfx {
 
 			void start();
 			i32 add_tex(const char* path);
-			BakedAtlas bake(i32 width, i32 height);
+			BakedAtlas bake(i32 width, i32 height, i32 padding);
 		};
 	};
 
 	struct FontAtlas {
 		static constexpr u32 CHARS_PER_FONT = 128;
 		i32 numFonts;
+		i32 oversampling;
+
+		struct FontMetrics {
+			f32 size;
+			f32 scale;
+		};
 
 		tds::Slice2<u8> bitmap;                    // grayscale bitmap with all fonts inside
 		tds::Slice2<stbtt_packedchar> packedChars; // X is indexed by char, Y is indexed by font
+		tds::Slice<FontMetrics> metadata;
 
 		struct LoadInfo {
 			const char* path;

@@ -12,7 +12,7 @@
 
 Theme currentTheme;
 
-gfx::Color from_clay_color(const Clay_Color& color) {
+static gfx::Color from_clay_color(const Clay_Color& color) {
 	return gfx::Color{
 		.r = color.r / 255.0f,
 		.g = color.g / 255.0f,
@@ -44,7 +44,7 @@ int main(int argc, char** argv) {
 		packer.add_tex("./res/white_pix.png");
 		uiBuilder.load_textures(packer);
 
-		textureAtlas = packer.bake(1024, 1024);
+		textureAtlas = packer.bake(512, 512, 1);
 	}
 
 	gfx::FontAtlas fontAtlas;
@@ -54,7 +54,7 @@ int main(int argc, char** argv) {
 			.fontHeight = 12.0f,
 		};
 
-		fontAtlas = gfx::FontAtlas::load(1024, 1024, &fontLoadInfo, 1);
+		fontAtlas = gfx::FontAtlas::load(512, 512, &fontLoadInfo, 1);
 		uiBuilder.set_fonts(fontAtlas);
 	}
 
@@ -64,11 +64,10 @@ int main(int argc, char** argv) {
 		window.eat_events();
 		if (!window.open) break;
 
-		// main render
 		Clay_RenderCommandArray renderCommands = uiBuilder.layout(window, currentTheme, nullptr);
-
 		renderer.start_frame(static_cast<f32>(window.width), static_cast<f32>(window.height), &textureAtlas, &fontAtlas);
 		renderer.clear(currentTheme.background);
+
 		for (int i = 0; i < renderCommands.length; i++) {
 			const Clay_RenderCommand& renderCommand = renderCommands.internalArray[i];
 			const Clay_BoundingBox& box = renderCommand.boundingBox;
@@ -90,23 +89,33 @@ int main(int argc, char** argv) {
 				// as of right now if we have transparent borders, then the corner pixels will probably be 
 			} break;
 			case CLAY_RENDER_COMMAND_TYPE_IMAGE: {
-				const gfx::Color color = from_clay_color(renderCommand.renderData.rectangle.backgroundColor);
-				const void* data = renderCommand.renderData.image.imageData;
+				const gfx::Color color = from_clay_color(renderCommand.renderData.image.backgroundColor);
+				const u32 texId = reinterpret_cast<u32>(renderCommand.renderData.image.imageData);
 
-				// render all available stuff so that we can switch textures
-				renderer.render();
+				if (texId > textureAtlas.regions.len)
+					break;
 
-				// TODO:
+				// want to draw transparent objects on top of everything currently opaque
+				if (color.a < 1.0)
+					renderer.render();
+
+				if (color.a > 0.0)
+					renderer.add_rect(box.x, box.y, box.width, box.height, texId, color);
 			} break;
 			case CLAY_RENDER_COMMAND_TYPE_TEXT: {
-				// TODO: again, this needs a bit more nuance since it's 5am code
-				// TODO: yeah this is mega broken... maybe check renderer.add_char
-				const gfx::Color color = from_clay_color(renderCommand.renderData.rectangle.backgroundColor);
+				// TODO: this is mega broken... need to figure out how to correctly size chars
+				// additionally we need to address the problem of characters being upside down
+				// that's probably a fix we can address in texture_atlas.cpp
+				// by going through every region rectangle, and flipping/swapping vertically the bitmap
+				// before we upload the font atlas to the GPU
+				const gfx::Color color = from_clay_color(renderCommand.renderData.text.textColor);
+				if (color.a == 0.0) break;
+
 				const Clay_StringSlice& text = renderCommand.renderData.text.stringContents;
 				const u16 id = renderCommand.renderData.text.fontId;
-				const u16 size = renderCommand.renderData.text.fontSize;
+				const u16 fontSize = renderCommand.renderData.text.fontSize;
 				const u16 spacing = renderCommand.renderData.text.letterSpacing;
-				const u16 height = renderCommand.renderData.text.lineHeight;
+				const u16 lineHeight = renderCommand.renderData.text.lineHeight;
 
 				if (id >= fontAtlas.numFonts)
 					break;
@@ -114,18 +123,40 @@ int main(int argc, char** argv) {
 				f32 cursorX = box.x;
 				f32 cursorY = box.y;
 
+				// want to draw transparent objects on top of everything currently opaque
+				if (color.a < 1.0)
+					renderer.render();
+
+				const f32 scale = 1.0f / static_cast<f32>(fontAtlas.oversampling);
+				//gfx::FontAtlas::FontMetrics& metrics = fontAtlas.metadata[id];
+				
+
+				// TODO: We still need to find a way to guarantee the height of the font is overall fontSize
+				// The behaviour doesn't seem too uniform...
+				// at least I'll have to fix the scale factor calculation above
+				// and also multiply xadvance by something like that 
+				f32 maxGlyphHeight = 0.0f;
 				for (i32 i = 0; i < text.length; i++) {
 					char current = text.chars[i];
-					if (current > gfx::FontAtlas::CHARS_PER_FONT)
+					if (current >= gfx::FontAtlas::CHARS_PER_FONT)
 						continue;
 
 					if (current == '\n') {
 						cursorX = box.x;
-						cursorY += size + height;
+						cursorY += maxGlyphHeight + lineHeight;
+						maxGlyphHeight = 0.0f;
 					} else {
 						const stbtt_packedchar& packedChar = fontAtlas.packedChars.get(current, id);
-						cursorX += spacing + packedChar.xadvance;
-						renderer.add_char(cursorX, cursorY, packedChar.x1 - packedChar.x0, size, id, current, color);
+						f32 width = static_cast<f32>(packedChar.x1 - packedChar.x0) * scale;
+						f32 height = static_cast<f32>(packedChar.y1 - packedChar.y0) * scale;
+						maxGlyphHeight = tim::max(maxGlyphHeight, height);
+
+						renderer.add_char(
+							cursorX + (static_cast<f32>(packedChar.xoff) * scale),
+							cursorY + (static_cast<f32>(packedChar.yoff) * scale),
+							width, height, id, current, color);
+						
+						cursorX += spacing + (packedChar.xadvance);
 					}
 				}
 

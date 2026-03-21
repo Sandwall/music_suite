@@ -4,7 +4,7 @@
 #include <SDL3/SDL_opengl.h>
 #include <stdio.h>
 
-const char* main_vertexSource = /* vertex shader */ R"(
+const char* main_vertexSource = /* vertex mainShader */ R"(
 #version 460 core
 layout (location = 0) in vec3 inPos;
 layout (location = 1) in vec2 inUv;
@@ -15,12 +15,12 @@ out vec4 vertexCol;
 
 void main() {
 	gl_Position = vec4(inPos, 1.0);
-	uv = inUv;
+	uv = vec2(inUv.x, inUv.y);
 	vertexCol = inCol;
 }
 )";
 
-const char* main_fragSource = /* fragment shader */ R"(
+const char* main_fragSource = /* fragment mainShader */ R"(
 #version 460 core
 out vec4 FragColor;
 
@@ -31,6 +31,22 @@ uniform sampler2D uTexture;
 
 void main() {
 	FragColor = texture(uTexture, uv) * vertexCol;
+}
+)";
+
+const char* text_fragSource = /* fragment mainShader */ R"(
+#version 460 core
+out vec4 FragColor;
+
+in vec2 uv;
+in vec4 vertexCol;
+
+uniform sampler2D uTexture;
+
+void main() {
+	float value = texture(uTexture, uv).r;
+	FragColor = vertexCol;
+	FragColor.a *= value;
 }
 )";
 
@@ -208,8 +224,8 @@ namespace gfx {
 		glGenTextures(1, &texture);
 		glBindTexture(GL_TEXTURE_2D, texture);
 
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
@@ -297,18 +313,20 @@ namespace gfx {
 			glVertexAttribPointer(2, 4, GL_FLOAT, GL_FALSE, STRIDE, (const void*)(sizeof(f32) * 5));
 		}
 
-		shader.compile(main_vertexSource, main_fragSource);
-		textureUniformLoc = glGetUniformLocation(shader.program, "uTexture");
+		mainShader.compile(main_vertexSource, main_fragSource);
+		mainTextureLoc = glGetUniformLocation(mainShader.program, "uTexture");
+		textShader.compile(main_vertexSource, text_fragSource);
+		textTextureLoc = glGetUniformLocation(textShader.program, "uTexture");
 	}
 
 	void GLRenderer::create_textures(const BakedAtlas& bakedAtlas, const FontAtlas& fontAtlas) {
 		mainTexture.create(bakedAtlas.bitmap.width, bakedAtlas.bitmap.height, GL_RGBA8, (void*)bakedAtlas.bitmap.data);
-		fontTexture.create(fontAtlas.bitmap.width, fontAtlas.bitmap.height, GL_R8, (void*)bakedAtlas.bitmap.data);
+		fontTexture.create(fontAtlas.bitmap.width, fontAtlas.bitmap.height, GL_R8, (void*)fontAtlas.bitmap.data);
 	}
 
 	void GLRenderer::cleanup() {
 		if (context) {
-			shader.destroy();
+			mainShader.destroy();
 
 			glDeleteBuffers(1, &vbo);
 			vbo = 0;
@@ -339,13 +357,14 @@ namespace gfx {
 		glBindBuffer(GL_ARRAY_BUFFER, vbo);
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
 		glBindVertexArray(vao);
-		glUseProgram(shader);
-		
-		glActiveTexture(GL_TEXTURE0);
-		glUniform1i(textureUniformLoc, 0);
+
 
 		// draw quads
 		if (numQuadsAdded > 0) {
+			glUseProgram(mainShader);
+			glActiveTexture(GL_TEXTURE0);
+			glUniform1i(mainTextureLoc, 0);
+
 			glBindTexture(GL_TEXTURE_2D, mainTexture.texture);
 			glBufferSubData(GL_ARRAY_BUFFER, 0, numQuadsAdded * 4 * sizeof(Vertex), quadVertices.data);
 			glDrawElements(GL_TRIANGLES, numQuadsAdded * 6, GL_UNSIGNED_INT, nullptr);
@@ -353,6 +372,23 @@ namespace gfx {
 
 		// draw text
 		if (numCharsAdded > 0) {
+			// TODO: we might have to restructure rendering
+			// I want all of the text to blend over each other,
+			// but enabling the depth test causes some of the transparent parts of the quads to "hide" other quads
+			// 
+			// maybe we should turn off depth masking so that our text is still obscured by quads drawn above it,
+			// but they don't obscure each other
+
+			// glDepthMask(GL_FALSE)
+			// and then we would have the paired glDepthMask(GL_TRUE) call in the quad drawing part above...
+
+			// for now i'm just going to work on glyph rendering by turning the depth test off but this is TEMPORARY
+			glDisable(GL_DEPTH_TEST);
+
+			glUseProgram(textShader);
+			glActiveTexture(GL_TEXTURE0);
+			glUniform1i(textTextureLoc, 0);
+
 			glBindTexture(GL_TEXTURE_2D, fontTexture.texture);
 			glBufferSubData(GL_ARRAY_BUFFER, 0, numCharsAdded * 4 * sizeof(Vertex), textVertices.data);
 			glDrawElements(GL_TRIANGLES, numCharsAdded * 6, GL_UNSIGNED_INT, nullptr);

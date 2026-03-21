@@ -33,8 +33,7 @@ namespace gfx {
 
 	void BakedAtlas::Packer::start() {
 		memset(this, 0, sizeof(BakedAtlas::Packer));
-
-		stbi_set_flip_vertically_on_load(true);
+		//stbi_set_flip_vertically_on_load(true);
 
 		assert(packerArena.capacity == 0);
 		packerArena.alloc();
@@ -47,13 +46,10 @@ namespace gfx {
 		imageData.data = stbi_load(path, &imageData.width, &imageData.height, &imageData.channels, 0);
 		if (!imageData.data) return -1;
 
-		// push_zero ensures node->next == nullptr
-		// this should mean to traverse the list, we can just follow next until we see next is nullptr
-		// ...basic stuff...
 		ImageNode* node = packerArena.push_zero<ImageNode>();
 		node->data = imageData;
 
-		// append node to front of imagesList
+		// append node to front of list (this requires we reverse it when baking to preserve load order)
 		if (imagesList) {
 			node->next = imagesList;
 		} imagesList = node;
@@ -61,32 +57,61 @@ namespace gfx {
 		return imagesLoaded++;
 	}
 
-	// releases most of the packing state and copies all of the images to a baked atlas
-	BakedAtlas BakedAtlas::Packer::bake(i32 width, i32 height) {
-		mem::Arena& scratch = mem::get_scratch();
-		mem::ArenaScope scope(scratch);
+	// returns the count of elements in the linked list
+	// takes in a reference to a pointer to a linked list node (since we set list to the new front node)
+	static i32 count_and_reverse_list(BakedAtlas::Packer::ImageNode*& list) {
+		if (!list) return 0;
+		using ImageNode = BakedAtlas::Packer::ImageNode;
 
-		// count rects in linked list & check if rects will fit in atlas
 		i32 count = 0;
-		{	// placing this in a block so that sumOfAllImageAreas is inaccessable when we don't need it
-			i32 sumOfAllImageAreas = 0;
-			for (ImageNode* current = imagesList; current != nullptr; current = current->next) {
-				sumOfAllImageAreas += current->data.width * current->data.height;
-				count++;
-			}
+		ImageNode* prev = nullptr;
+		ImageNode* current = list;
 
-			// this is a super simple heuristic and it definitely won't cover all cases
-			if (sumOfAllImageAreas > (width * height)) {
-				fprintf(stderr, "BakedAtlas::Packer Error! Too many images for the requested atlas size!\n");
-				return { 0 };
-			}
+		while (current != nullptr) {
+			ImageNode* next = current->next;
+			current->next = prev;
+
+			prev = current;
+			current = next;
+			count++;
 		}
 
+		list = prev;
+		return count;
+	}
+
+	// these functions sample an image loaded from stb_image with nChannels set to 0
+	// that means that the data that stb_image loads will have usually either 1, 3, or 4 bytes per pixel
+	static inline u32 sample_r(i32 x, i32 y, const BakedAtlas::Packer::ImageData& image) {
+		return (static_cast<u32>(image.data[x + (y * image.width)]) << 24) | 0x00FFFFFF;
+	}
+
+	static inline u32 sample_rgb(i32 sourceX, i32 sourceY, const BakedAtlas::Packer::ImageData& image) {
+		// NOTE: ensure that sourceX is the actual pixel x multiplied by 3!!!
+		// also ensure that sourceY is the actual pixel y multiplied by the row stride in bytes!!!
+		return 0xFF000000 |
+			(static_cast<u32>(image.data[(sourceX + 0) + sourceY]) << 0) |
+			(static_cast<u32>(image.data[(sourceX + 1) + sourceY]) << 8) |
+			(static_cast<u32>(image.data[(sourceX + 2) + sourceY]) << 16);
+	}
+
+	static inline u32 sample_rgba(i32 x, i32 y, const BakedAtlas::Packer::ImageData& image) {
+		return reinterpret_cast<u32*>(image.data)[x + (y * image.width)];
+	}
+
+	// releases most of the packing state and copies all of the images to a baked atlas
+	BakedAtlas BakedAtlas::Packer::bake(i32 width, i32 height, i32 padding) {
+		if(!imagesList) return { 0};
+
+		i32 count = count_and_reverse_list(imagesList);
+
 		// use the count to do some allocations
-		stbrp_rect* rects = scratch.push<stbrp_rect>(count);
-		stbrp_node* rpNodes = scratch.push<stbrp_node>(width);
+		stbrp_rect* rects = packerArena.push<stbrp_rect>(count);
+		stbrp_node* rpNodes = packerArena.push<stbrp_node>(width);
 		stbrp_context rpContext;
 		stbrp_init_target(&rpContext, width, height, rpNodes, width);
+
+		const i32 twoPadding = 2 * padding;
 		
 		// now fill rects array with image from ImageNodes
 		count = 0;
@@ -95,7 +120,7 @@ namespace gfx {
 			
 			rects[count] = {
 				.id = count,
-				.w = data.width, .h = data.height,
+				.w = data.width + twoPadding, .h = data.height + twoPadding,
 				.x = 0, .y = 0,
 				.was_packed = 0
 			};
@@ -114,9 +139,16 @@ namespace gfx {
 		count = 0;
 		for (ImageNode* current = imagesList; current != nullptr; current = current->next) {
 			ImageData& image = current->data;
-			const stbrp_rect& newRect = rects[count];
+			stbrp_rect& newRect = rects[count];
 
-			// First, set the region rect
+			// offset the newRect xywh by padding values to stay within the bounds
+			newRect.x += padding;
+			newRect.y += padding;
+			newRect.w -= twoPadding;
+			newRect.h -= twoPadding;
+
+			// set the region rect
+			// NOTE that atlas.bitmap.width and height are the width and height of the original image, so we have to
 			atlas.regions[count] = {
 				.x = static_cast<f32>(newRect.x) / static_cast<f32>(atlas.bitmap.width),
 				.y = static_cast<f32>(newRect.y) / static_cast<f32>(atlas.bitmap.height),
@@ -125,38 +157,98 @@ namespace gfx {
 			};
 
 			// now copy the image into its position in the atlas according to the newly placed stbrp_rect
-			// we'll also need to do some shenanigans to actually copy the image image depending on the number of 8bit channels
+			// - we'll also need to do some shenanigans to actually copy the image image depending on the number of 8bit channels
+			// - we need to also consider padding values, they'll just take the values of their neighbors
+			// 
+			//   before you recoil in horror at the following code, consider that handling the padding for each case
+			//   has a very similar structure (left padding, current row, right padding, top padding, bottom padding)
+			//   and usually just varies in the way that the data is addressed (r, rgb, rgba) and the functions that are called
 
 			switch (image.channels) {
 			case 1: { // image.data is assumed to be R8 Grayscale format
+                      // RGB components take 255, and A component takes value of the source bitmap
 				for (i32 y = 0; y < image.height; y++) {
-					for (i32 x = 0; x < image.width; x++) {
-						// RGB components take 255, and A component takes value of the source bitmap
-						u32 currentValue = (static_cast<u32>(image.data[x + (y * image.width)]) << 24) | 0x00FFFFFF;
+					const i32 newY = newRect.y + y;
+					
+					// left vertical padding
+					for (i32 p = 0; p < padding; p++) {
+						const i32 newX = newRect.x - padding + p;
+						atlas.bitmap.data[newX + (newY * atlas.bitmap.width)] = sample_r(0, y, image);
+					}
 
+					// current row
+					for (i32 x = 0; x < image.width; x++) {
 						const i32 newX = newRect.x + x;
-						const i32 newY = newRect.y + y;
-						atlas.bitmap.data[newX + (newY * atlas.bitmap.width)] = currentValue;
+						atlas.bitmap.data[newX + (newY * atlas.bitmap.width)] = sample_r(x, y, image);
+					}
+
+					// right vertical padding
+					for (i32 p = 0; p < padding; p++) {
+						const i32 newX = newRect.x + newRect.w + p;
+						atlas.bitmap.data[newX + (newY * atlas.bitmap.width)] = sample_r(image.width - 1, y, image);
+					}
+				}
+
+				// top horizontal padding
+				for (i32 p = 0; p < padding; p++) {
+					const i32 newY = newRect.y - padding + p;
+					for (i32 x = -padding; x < image.width + padding; x++) {
+						i32 srcX = tim::clamp(x, 0, image.width - 1);
+						atlas.bitmap.data[(newRect.x + x) + (newY * atlas.bitmap.width)] = sample_r(srcX, 0, image);
+					}
+				}
+
+				// bottom horizontal padding
+				for (i32 p = 0; p < padding; p++) {
+					const i32 newY = newRect.y + image.height + p;
+					for (i32 x = -padding; x < image.width + padding; x++) {
+						i32 srcX = tim::clamp(x, 0, image.width - 1);
+						atlas.bitmap.data[(newRect.x + x) + (newY * atlas.bitmap.width)] = sample_r(srcX, image.height - 1, image);
 					}
 				}
 			} break;
 			case 3: { // image.data is assumed to be RGB8 format
+                      // RGB components take the values of the source bitmap, and A component takes 255
 				const size_t sourceStride = 3 * image.width;
-
+				
 				for (i32 y = 0; y < image.height; y++) {
+					size_t sourceY = y * sourceStride;
+					const i32 newY = newRect.y + y;
+
+					// left vertical padding
+					for (i32 p = 0; p < padding; p++) {
+						const i32 newX = newRect.x - padding + p;
+						atlas.bitmap.data[newX + (newY * atlas.bitmap.width)] = sample_rgb(0, sourceY, image);
+					}
+
+					// current row
 					for (i32 x = 0; x < image.width; x++) {
-						size_t sourceY = y * sourceStride;
-						size_t sourceX = x * 3;
-
-						// RGB components take the values of the source bitmap, and A component takes 255
-						u32 currentValue = 0xFF000000 |
-							(static_cast<u32>(image.data[(sourceX + 0) + sourceY]) << 0) |
-							(static_cast<u32>(image.data[(sourceX + 1) + sourceY]) << 8) |
-							(static_cast<u32>(image.data[(sourceX + 2) + sourceY]) << 16);
-
 						const i32 newX = newRect.x + x;
-						const i32 newY = newRect.y + y;
-						atlas.bitmap.data[newX + (newY * atlas.bitmap.width)] = currentValue;
+						atlas.bitmap.data[newX + (newY * atlas.bitmap.width)] = sample_rgb(x * 3, sourceY, image);
+					}
+
+					// right vertical padding
+					for (i32 p = 0; p < padding; p++) {
+						const i32 newX = newRect.x + newRect.w + p;
+						atlas.bitmap.data[newX + (newY * atlas.bitmap.width)] = sample_rgb((image.width - 1) * 3, sourceY, image);
+					}
+				}
+
+				// top horizontal padding
+				for (i32 p = 0; p < padding; p++) {
+					const i32 newY = newRect.y - padding + p;
+					for (i32 x = -padding; x < image.width + padding; x++) {
+						i32 srcX = tim::clamp(x, 0, image.width - 1);
+						atlas.bitmap.data[(newRect.x + x) + (newY * atlas.bitmap.width)] = sample_rgb(srcX * 3, 0, image);
+					}
+				}
+
+				// bottom horizontal padding
+				for (i32 p = 0; p < padding; p++) {
+					const i32 newY = newRect.y + image.height + p;
+					for (i32 x = -padding; x < image.width + padding; x++) {
+						i32 srcX = tim::clamp(x, 0, image.width - 1);
+						atlas.bitmap.data[(newRect.x + x) + (newY * atlas.bitmap.width)] = sample_rgb(srcX * 3, sourceStride * (image.height - 1), image);
 					}
 				}
 			} break;
@@ -164,9 +256,43 @@ namespace gfx {
 				const size_t sourceStride = 4 * image.width;
 
 				for (i32 y = 0; y < image.height; y++) {
-					const u32* startSource = reinterpret_cast<u32*>(image.data) + (y * image.width);
-					u32* startTarget = atlas.bitmap.data + newRect.x + ((newRect.y + y) * atlas.bitmap.width);
-					memcpy(startTarget, startSource, sourceStride);
+					const i32 newY = newRect.y + y;
+
+					// left vertical padding
+					for (i32 p = 0; p < padding; p++) {
+						const i32 newX = newRect.x - padding + p;
+						atlas.bitmap.data[newX + (newY * atlas.bitmap.width)] = sample_rgba(0, y, image);
+					}
+
+					// current row
+					memcpy(
+						atlas.bitmap.data + newRect.x + ((newRect.y + y) * atlas.bitmap.width),
+						reinterpret_cast<u32*>(image.data) + (y * image.width),
+						sourceStride);
+
+					// right vertical padding
+					for (i32 p = 0; p < padding; p++) {
+						const i32 newX = newRect.x + newRect.w + p;
+						atlas.bitmap.data[newX + (newY * atlas.bitmap.width)] = sample_rgba(image.width - 1, y, image);
+					}
+				}
+
+				// top horizontal padding
+				for (i32 p = 0; p < padding; p++) {
+					const i32 newY = newRect.y - padding + p;
+					for (i32 x = -padding; x < image.width + padding; x++) {
+						i32 srcX = tim::clamp(x, 0, image.width - 1);
+						atlas.bitmap.data[(newRect.x + x) + (newY * atlas.bitmap.width)] = sample_rgba(srcX, 0, image);
+					}
+				}
+
+				// bottom horizontal padding
+				for (i32 p = 0; p < padding; p++) {
+					const i32 newY = newRect.y + image.height + p;
+					for (i32 x = -padding; x < image.width + padding; x++) {
+						i32 srcX = tim::clamp(x, 0, image.width - 1);
+						atlas.bitmap.data[(newRect.x + x) + (newY * atlas.bitmap.width)] = sample_rgba(srcX, image.height - 1, image);
+					}
 				}
 			} break;
 			default: {
@@ -199,9 +325,11 @@ namespace gfx {
 		FontAtlas atlas = { 0 };
 		atlas.bitmap = tds::Slice2<u8>::alloc(width, height);
 		atlas.packedChars = tds::Slice2<stbtt_packedchar>::alloc(CHARS_PER_FONT, numFonts);
+		atlas.metadata = tds::Slice<FontMetrics>::alloc(numFonts);
 
 		stbtt_PackBegin(&packContext, atlas.bitmap.data, width, height, width, 1, nullptr);
-		stbtt_PackSetOversampling(&packContext, 4, 4);
+		atlas.oversampling = 4;
+		stbtt_PackSetOversampling(&packContext, atlas.oversampling, atlas.oversampling);
 
 		for (i32 i = 0; i < numFonts; i++) {
 			LoadInfo& loadInfo = loadInfos[i];
@@ -217,15 +345,24 @@ namespace gfx {
 			fclose(fp);
 
 			// just loading the basic ASCII text for now
+			
+			stbtt_fontinfo fontInfo;
+			stbtt_InitFont(&fontInfo, reinterpret_cast<u8*>(fileData), 0);
+
 			stbtt_pack_range range = {
-				.font_size = loadInfo.fontHeight,
+				.font_size = STBTT_POINT_SIZE(loadInfo.fontHeight),
 				.first_unicode_codepoint_in_range = 0,
 				.array_of_unicode_codepoints = nullptr,
 				.num_chars = CHARS_PER_FONT,
 				.chardata_for_range = atlas.packedChars.get_ptr(0, i)
 			};
 
+			//FontMetrics& metrics = atlas.metadata[i];
+			//metrics.size = loadInfo.fontHeight;
+			//metrics.scale = stbtt_ScaleForPixelHeight(&fontInfo, loadInfo.fontHeight);
+
 			stbtt_PackFontRanges(&packContext, (unsigned char*)fileData, 0, &range, 1);
+			atlas.numFonts++;
 		}
 
 		stbtt_PackEnd(&packContext);
@@ -235,5 +372,6 @@ namespace gfx {
 	void FontAtlas::dealloc(FontAtlas& atlas) {
 		tds::Slice2<u8>::free(atlas.bitmap);
 		tds::Slice2<stbtt_packedchar>::free(atlas.packedChars);
+		tds::Slice<FontMetrics>::free(atlas.metadata);
 	}
 }
