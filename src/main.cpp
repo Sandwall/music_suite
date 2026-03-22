@@ -104,10 +104,6 @@ int main(int argc, char** argv) {
 			} break;
 			case CLAY_RENDER_COMMAND_TYPE_TEXT: {
 				// TODO: this is mega broken... need to figure out how to correctly size chars
-				// additionally we need to address the problem of characters being upside down
-				// that's probably a fix we can address in texture_atlas.cpp
-				// by going through every region rectangle, and flipping/swapping vertically the bitmap
-				// before we upload the font atlas to the GPU
 				const gfx::Color color = from_clay_color(renderCommand.renderData.text.textColor);
 				if (color.a == 0.0) break;
 

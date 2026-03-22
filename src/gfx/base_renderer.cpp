@@ -37,7 +37,7 @@ namespace gfx {
 
 		// TL
 		current->x = to_ndc(x, targetWidth);
-		current->y = to_ndc(y, targetHeight);
+		current->y = -to_ndc(y, targetHeight);
 		current->z = z;
 		current->u = uvRect.x;
 		current->v = uvRect.y;
@@ -47,7 +47,7 @@ namespace gfx {
 
 		// BL
 		current->x = to_ndc(x, targetWidth);
-		current->y = to_ndc(y + h, targetHeight);
+		current->y = -to_ndc(y + h, targetHeight);
 		current->z = z;
 		current->u = uvRect.x;
 		current->v = uvRect.y + uvRect.h;
@@ -57,7 +57,7 @@ namespace gfx {
 
 		// BR
 		current->x = to_ndc(x + w, targetWidth);
-		current->y = to_ndc(y + h, targetHeight);
+		current->y = -to_ndc(y + h, targetHeight);
 		current->z = z;
 		current->u = uvRect.x + uvRect.w;
 		current->v = uvRect.y + uvRect.h;
@@ -67,7 +67,7 @@ namespace gfx {
 
 		// TR
 		current->x = to_ndc(x + w, targetWidth);
-		current->y = to_ndc(y, targetHeight);
+		current->y = -to_ndc(y, targetHeight);
 		current->z = z;
 		current->u = uvRect.x + uvRect.w;
 		current->v = uvRect.y;
@@ -98,7 +98,7 @@ namespace gfx {
 
 		// TL
 		current->x = to_ndc(x, targetWidth);
-		current->y = to_ndc(y, targetHeight);
+		current->y = -to_ndc(y, targetHeight);
 		current->z = z;
 		current->u = uvRect.x;
 		current->v = uvRect.y;
@@ -108,7 +108,7 @@ namespace gfx {
 
 		// BL
 		current->x = to_ndc(x, targetWidth);
-		current->y = to_ndc(y + h, targetHeight);
+		current->y = -to_ndc(y + h, targetHeight);
 		current->z = z;
 		current->u = uvRect.x;
 		current->v = uvRect.y + uvRect.h;
@@ -118,7 +118,7 @@ namespace gfx {
 
 		// BR
 		current->x = to_ndc(x + w, targetWidth);
-		current->y = to_ndc(y + h, targetHeight);
+		current->y = -to_ndc(y + h, targetHeight);
 		current->z = z;
 		current->u = uvRect.x + uvRect.w;
 		current->v = uvRect.y + uvRect.h;
@@ -128,7 +128,7 @@ namespace gfx {
 
 		// TR
 		current->x = to_ndc(x + w, targetWidth);
-		current->y = to_ndc(y, targetHeight);
+		current->y = -to_ndc(y, targetHeight);
 		current->z = z;
 		current->u = uvRect.x + uvRect.w;
 		current->v = uvRect.y;
