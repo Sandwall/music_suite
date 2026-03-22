@@ -55,6 +55,7 @@ namespace view {
 	}
 
 	static Clay_Dimensions measure_text(Clay_StringSlice text, Clay_TextElementConfig* config, void* userData) {
+		// default monospace text measure metrics
 		Clay_Dimensions dimensions = {
 			.width = static_cast<float>(text.length * config->fontSize),
 			.height = static_cast<float>(config->fontSize)
@@ -64,17 +65,15 @@ namespace view {
 			return dimensions;
 		
 		gfx::FontAtlas& fontAtlas = *reinterpret_cast<gfx::FontAtlas*>(userData);
-
 		if (config->fontId >= fontAtlas.numFonts)
 			return dimensions;
 
+		gfx::FontAtlas::FontMetrics& metrics = fontAtlas.metadata[config->fontId];
+		const f32 fontScale = static_cast<f32>(config->fontSize) / metrics.loadedFontSize;
 		f32 cursorX = 0, cursorY = config->fontSize + config->lineHeight;
 		dimensions.width = cursorX;
 		dimensions.height = cursorY;
 
-		// TODO: I think this strategy might need a bit more nuance... it's 5am code...
-		const f32 scale = 1.0f / static_cast<f32>(fontAtlas.oversampling);
-		f32 maxGlyphHeight = 0.0f;
 		for (i32 i = 0; i < text.length; i++) {
 			char current = text.chars[i];
 			if (current > gfx::FontAtlas::CHARS_PER_FONT)
@@ -82,19 +81,14 @@ namespace view {
 
 			if (current == '\n') {
 				cursorX = 0.0f;
-				cursorY += maxGlyphHeight + config->lineHeight;
-				maxGlyphHeight = 0.0f;
-			}
-			else {
+				cursorY += config->fontSize + config->lineHeight;
+			} else {
 				const stbtt_packedchar& packedChar = fontAtlas.packedChars.get(current, config->fontId);
-				f32 width = static_cast<f32>(packedChar.x1 - packedChar.x0) * scale;
-				f32 height = static_cast<f32>(packedChar.y1 - packedChar.y0) * scale;
-				maxGlyphHeight = tim::max(maxGlyphHeight, height);
-				cursorX += config->letterSpacing + (packedChar.xadvance);
+				cursorX += static_cast<f32>(config->letterSpacing) + (packedChar.xadvance * fontScale);
 			}
 
-			dimensions.width = tim::max(dimensions.width, cursorY);
-			dimensions.height = tim::max(dimensions.height, cursorX);
+			dimensions.width = tim::max(dimensions.width, cursorX);
+			dimensions.height = tim::max(dimensions.height, cursorY);
 		}
 
 		return dimensions;
@@ -103,8 +97,7 @@ namespace view {
 	void UiBuilder::init(const gfx::Window& window) {
 		u32 totalMemorySize = Clay_MinMemorySize();
 		Clay_Arena clayArena = Clay_CreateArenaWithCapacityAndMemory(totalMemorySize, malloc(totalMemorySize));
-		Clay_Initialize(clayArena, Clay_Dimensions { (f32)window.width, (f32)window.height }, Clay_ErrorHandler {handle_clay_errors});
-
+		Clay_Initialize(clayArena, Clay_Dimensions { static_cast<f32>(window.width), static_cast<f32>(window.height) }, Clay_ErrorHandler {handle_clay_errors});
 	}
 
 	void UiBuilder::load_textures(gfx::BakedAtlas::Packer& packer) {
@@ -126,13 +119,13 @@ namespace view {
 
 		Clay_BeginLayout();
 
-		CLAY_TEXT(CLAY_STRING("Hello! This is some test text!\n I am now testing some newlines!!!"), CLAY_TEXT_CONFIG({ .textColor = {255, 255, 255, 255}, .fontSize = 12 }));
-		//CLAY({
-		//	.id = CLAY_ID("OuterContainer"),
-		//	.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0)}, .padding = CLAY_PADDING_ALL(16), .childGap = 16},
-		//	.backgroundColor = {100, 100, 100, 255}
-		//	}) {
-		//}
+		CLAY({
+			.id = CLAY_ID("OuterContainer"),
+			.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0)}, .padding = CLAY_PADDING_ALL(16), .childGap = 16},
+			.backgroundColor = {100, 100, 100, 255}
+			}) {
+			CLAY_TEXT(CLAY_STRING("Hello! This is some test text!\nI am now testing some newlines!!!"), CLAY_TEXT_CONFIG({ .textColor = {255, 255, 255, 255}, .fontSize = 12 }));
+		}
 
 		return Clay_EndLayout();
 	}

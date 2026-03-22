@@ -34,11 +34,11 @@ namespace gfx {
 	struct FontAtlas {
 		static constexpr u32 CHARS_PER_FONT = 128;
 		i32 numFonts;
-		i32 oversampling;
+		i32 oversamplingX;
+		i32 oversamplingY;
 
 		struct FontMetrics {
-			f32 size;
-			f32 scale;
+			f32 loadedFontSize;
 		};
 
 		tds::Slice2<u8> bitmap;                    // grayscale bitmap with all fonts inside

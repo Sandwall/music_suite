@@ -203,13 +203,13 @@ namespace tds {
 
 		T* get_ptr(i64 x, i64 y) {
 			i64 idx = x + (y * width);
-			assert(idx >= 0 && idx < len);
+			assert(idx >= 0 && idx < static_cast<i64>(len));
 			return &data[idx];
 		}
 
 		T& get(i64 x, i64 y) {
 			i64 idx = x + (y * width);
-			assert(idx >= 0 && idx < len);
+			assert(idx >= 0 && idx < static_cast<i64>(len));
 			return data[idx];
 		}
 

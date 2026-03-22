@@ -43,14 +43,14 @@ namespace gfx {
 		// sets numVertices to 0
 		void flush_batch();
 
-		// draws a colored rect with specified source uv coordinates
-		void add_rect(f32 x, f32 y, f32 w, f32 h, i32 texIdx, const Color& color = { 1.0f, 1.0f, 1.0f, 1.0f });
+		// draws a colored rect that samples a virtual texture in the BakedAtlas
+		void add_tex(f32 x, f32 y, f32 w, f32 h, i32 texIdx, const Color& color = { 1.0f, 1.0f, 1.0f, 1.0f });
 
 		// draws a plain colored rect
 		void add_rect(f32 x, f32 y, f32 w, f32 h, const Color& color = { 1.0f, 1.0f, 1.0f, 1.0f });
 
-		// draws a quad from the font atlas
-		void add_char(f32 x, f32 y, f32 w, f32 h, i32 fontId, i32 codepoint, const Color& color = { 1.0f, 1.0f, 1.0f, 1.0f });
+		// draws a colored rect that samples a character in the BakedAtlas
+		void add_char(f32 x, f32 y, f32 w, f32 h, const stbtt_packedchar& packedChar, const Color& color = { 1.0f, 1.0f, 1.0f, 1.0f });
 	protected:
 		f32 targetWidth, targetHeight;
 	};

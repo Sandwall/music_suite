@@ -54,7 +54,7 @@ int main(int argc, char** argv) {
 			.fontHeight = 12.0f,
 		};
 
-		fontAtlas = gfx::FontAtlas::load(512, 512, &fontLoadInfo, 1);
+		fontAtlas = gfx::FontAtlas::load(1024, 1024, &fontLoadInfo, 1);
 		uiBuilder.set_fonts(fontAtlas);
 	}
 
@@ -90,7 +90,7 @@ int main(int argc, char** argv) {
 			} break;
 			case CLAY_RENDER_COMMAND_TYPE_IMAGE: {
 				const gfx::Color color = from_clay_color(renderCommand.renderData.image.backgroundColor);
-				const u32 texId = reinterpret_cast<u32>(renderCommand.renderData.image.imageData);
+				const u32 texId = reinterpret_cast<const u32>(renderCommand.renderData.image.imageData);
 
 				if (texId > textureAtlas.regions.len)
 					break;
@@ -100,9 +100,10 @@ int main(int argc, char** argv) {
 					renderer.render();
 
 				if (color.a > 0.0)
-					renderer.add_rect(box.x, box.y, box.width, box.height, texId, color);
+					renderer.add_tex(box.x, box.y, box.width, box.height, texId, color);
 			} break;
 			case CLAY_RENDER_COMMAND_TYPE_TEXT: {
+
 				// TODO: this is mega broken... need to figure out how to correctly size chars
 				const gfx::Color color = from_clay_color(renderCommand.renderData.text.textColor);
 				if (color.a == 0.0) break;
@@ -116,22 +117,16 @@ int main(int argc, char** argv) {
 				if (id >= fontAtlas.numFonts)
 					break;
 
-				f32 cursorX = box.x;
-				f32 cursorY = box.y;
 
 				// want to draw transparent objects on top of everything currently opaque
 				if (color.a < 1.0)
 					renderer.render();
 
-				const f32 scale = 1.0f / static_cast<f32>(fontAtlas.oversampling);
-				//gfx::FontAtlas::FontMetrics& metrics = fontAtlas.metadata[id];
-				
+				gfx::FontAtlas::FontMetrics& metrics = fontAtlas.metadata[id];
+				const f32 fontScale = static_cast<f32>(fontSize) / metrics.loadedFontSize;
+				f32 cursorX = box.x;
+				f32 cursorY = box.y;
 
-				// TODO: We still need to find a way to guarantee the height of the font is overall fontSize
-				// The behaviour doesn't seem too uniform...
-				// at least I'll have to fix the scale factor calculation above
-				// and also multiply xadvance by something like that 
-				f32 maxGlyphHeight = 0.0f;
 				for (i32 i = 0; i < text.length; i++) {
 					char current = text.chars[i];
 					if (current >= gfx::FontAtlas::CHARS_PER_FONT)
@@ -139,20 +134,23 @@ int main(int argc, char** argv) {
 
 					if (current == '\n') {
 						cursorX = box.x;
-						cursorY += maxGlyphHeight + lineHeight;
-						maxGlyphHeight = 0.0f;
+						cursorY += fontSize + lineHeight;
 					} else {
 						const stbtt_packedchar& packedChar = fontAtlas.packedChars.get(current, id);
-						f32 width = static_cast<f32>(packedChar.x1 - packedChar.x0) * scale;
-						f32 height = static_cast<f32>(packedChar.y1 - packedChar.y0) * scale;
-						maxGlyphHeight = tim::max(maxGlyphHeight, height);
+						gfx::Rect quad = {
+							.x0 = cursorX + (fontScale * packedChar.xoff),
+							.y0 = cursorY + (fontScale * packedChar.yoff),
+							.x1 = cursorX + (fontScale * packedChar.xoff2),
+							.y1 = cursorY + (fontScale * packedChar.yoff2)
+						};
+
+						cursorX += static_cast<f32>(spacing) + (packedChar.xadvance * fontScale);
 
 						renderer.add_char(
-							cursorX + (static_cast<f32>(packedChar.xoff) * scale),
-							cursorY + (static_cast<f32>(packedChar.yoff) * scale),
-							width, height, id, current, color);
-						
-						cursorX += spacing + (packedChar.xadvance);
+							quad.x0, quad.y0,
+							quad.x1 - quad.x0, quad.y1 - quad.y0,
+							packedChar,
+							color);
 					}
 				}
 

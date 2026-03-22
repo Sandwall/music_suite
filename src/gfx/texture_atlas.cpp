@@ -328,8 +328,8 @@ namespace gfx {
 		atlas.metadata = tds::Slice<FontMetrics>::alloc(numFonts);
 
 		stbtt_PackBegin(&packContext, atlas.bitmap.data, width, height, width, 1, nullptr);
-		atlas.oversampling = 4;
-		stbtt_PackSetOversampling(&packContext, atlas.oversampling, atlas.oversampling);
+		atlas.oversamplingX = 4;
+		stbtt_PackSetOversampling(&packContext, atlas.oversamplingX, atlas.oversamplingX * 2);
 
 		for (i32 i = 0; i < numFonts; i++) {
 			LoadInfo& loadInfo = loadInfos[i];
@@ -344,22 +344,20 @@ namespace gfx {
 			fread(fileData, fileSize, 1, fp);
 			fclose(fp);
 
-			// just loading the basic ASCII text for now
-			
-			stbtt_fontinfo fontInfo;
-			stbtt_InitFont(&fontInfo, reinterpret_cast<u8*>(fileData), 0);
+			//stbtt_fontinfo fontInfo;
+			//stbtt_InitFont(&fontInfo, reinterpret_cast<u8*>(fileData), 0);
 
+			// just loading the basic ASCII text for now
 			stbtt_pack_range range = {
-				.font_size = STBTT_POINT_SIZE(loadInfo.fontHeight),
+				.font_size = loadInfo.fontHeight,
 				.first_unicode_codepoint_in_range = 0,
 				.array_of_unicode_codepoints = nullptr,
 				.num_chars = CHARS_PER_FONT,
 				.chardata_for_range = atlas.packedChars.get_ptr(0, i)
 			};
 
-			//FontMetrics& metrics = atlas.metadata[i];
-			//metrics.size = loadInfo.fontHeight;
-			//metrics.scale = stbtt_ScaleForPixelHeight(&fontInfo, loadInfo.fontHeight);
+			FontMetrics& metrics = atlas.metadata[i];
+			metrics.loadedFontSize = loadInfo.fontHeight;
 
 			stbtt_PackFontRanges(&packContext, (unsigned char*)fileData, 0, &range, 1);
 			atlas.numFonts++;

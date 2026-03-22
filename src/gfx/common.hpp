@@ -4,8 +4,15 @@
 #include <tinydef.hpp>
 
 namespace gfx {
-	struct Rect {
-		f32 x, y, w, h;
+	union Rect {
+		f32 r[4];
+
+		struct {
+			f32 x, y, w, h;
+		};
+		struct {
+			f32 x0, y0, x1, y1;
+		};
 	};
 
 	// NOTE: Color values are strictly in the range [0.0, 1.0]
