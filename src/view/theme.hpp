@@ -9,6 +9,7 @@ struct Theme {
 	// base colors
 	gfx::Color background = gfx::Color::from_hsv(0.0f, 25.0f / 100.0f, 25.0f / 100.0f);
 	gfx::Color text = { 0.9f, 0.9f, 0.9f, 1.0f };
+	gfx::Color element1 = gfx::Color::from_hsv(0.0f, 15.0f / 100.0f, 20.0f / 100.0f);
 
 	// derivative colors
 

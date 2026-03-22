@@ -344,8 +344,12 @@ namespace gfx {
 			fread(fileData, fileSize, 1, fp);
 			fclose(fp);
 
-			//stbtt_fontinfo fontInfo;
-			//stbtt_InitFont(&fontInfo, reinterpret_cast<u8*>(fileData), 0);
+			stbtt_fontinfo fontInfo;
+			stbtt_InitFont(&fontInfo, reinterpret_cast<u8*>(fileData), 0);
+			FontMetrics& metrics = atlas.metadata[i];
+			metrics.loadedFontSize = loadInfo.fontHeight;
+			metrics.vMetricsScale = stbtt_ScaleForPixelHeight(&fontInfo, loadInfo.fontHeight);
+			stbtt_GetFontVMetrics(&fontInfo, &metrics.ascent, &metrics.descent, &metrics.lineGap);
 
 			// just loading the basic ASCII text for now
 			stbtt_pack_range range = {
@@ -356,8 +360,7 @@ namespace gfx {
 				.chardata_for_range = atlas.packedChars.get_ptr(0, i)
 			};
 
-			FontMetrics& metrics = atlas.metadata[i];
-			metrics.loadedFontSize = loadInfo.fontHeight;
+
 
 			stbtt_PackFontRanges(&packContext, (unsigned char*)fileData, 0, &range, 1);
 			atlas.numFonts++;

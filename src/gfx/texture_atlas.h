@@ -39,6 +39,11 @@ namespace gfx {
 
 		struct FontMetrics {
 			f32 loadedFontSize;
+
+			f32 vMetricsScale;
+			i32 ascent;
+			i32 descent;
+			i32 lineGap;
 		};
 
 		tds::Slice2<u8> bitmap;                    // grayscale bitmap with all fonts inside

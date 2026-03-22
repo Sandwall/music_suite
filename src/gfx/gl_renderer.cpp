@@ -349,7 +349,11 @@ namespace gfx {
 	}
 
 	void GLRenderer::render(bool flush) {
+		if (numQuadsAdded == 0 && numCharsAdded == 0)
+			return;
+
 		// set state
+		glEnable(GL_SCISSOR_TEST);
 		glEnable(GL_DEPTH_TEST);
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -357,7 +361,6 @@ namespace gfx {
 		glBindBuffer(GL_ARRAY_BUFFER, vbo);
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
 		glBindVertexArray(vao);
-
 
 		// draw quads
 		if (numQuadsAdded > 0) {
@@ -398,8 +401,11 @@ namespace gfx {
 			flush_batch();
 	}
 
+	// for some reason glScissor expects a format where the origin of the rectangle is at the bottom left,
+	// and the rectangle grows towards the top right, but we have top left origin growing to the bottom right
+	// so we have to flip the y like this...
 	void GLRenderer::scissor(i32 x, i32 y, i32 w, i32 h) {
-		glScissor(x, y, w, h);
+		glScissor(x, targetHeight - (y + h), w, h);
 	}
 
 	void GLRenderer::clear(const Color& clearColor) {

@@ -28,7 +28,7 @@ namespace gfx {
 		assert((numQuadsAdded * 4) < (quadVertices.len - 4));
 
 		Vertex* current = &(quadVertices[(numQuadsAdded++) * 4]);
-		f32 z = to_ndc(static_cast<f32>(numDrawnObjects), static_cast<f32>(quadVertices.len + textVertices.len));	// -z forward
+		f32 z = -to_ndc(static_cast<f32>(numDrawnObjects), static_cast<f32>(quadVertices.len + textVertices.len));	// -z forward
 
 		Rect uvRect = { 0.0f, 0.0f, 1.0f, 1.0f };
 		if (textureAtlasRef) {
@@ -85,7 +85,7 @@ namespace gfx {
 		assert((numCharsAdded * 4) < (textVertices.len - 4));
 
 		Vertex* current = &(textVertices[(numCharsAdded++) * 4]);
-		f32 z = to_ndc(static_cast<f32>(numDrawnObjects), static_cast<f32>(quadVertices.len + textVertices.len));	// -z forward
+		f32 z = -to_ndc(static_cast<f32>(numDrawnObjects), static_cast<f32>(quadVertices.len + textVertices.len));	// -z forward
 
 		if (!fontAtlasRef) return;
 

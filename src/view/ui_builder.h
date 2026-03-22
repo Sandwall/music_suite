@@ -19,8 +19,13 @@ namespace view {
 		Clay_RenderCommandArray layout(const gfx::Window& window, const Theme& theme, void* prg);
 		void load_textures(gfx::BakedAtlas::Packer& packer);
 		void set_fonts(gfx::FontAtlas& fontAtlas);
+
 	private:
-		Theme* currentTheme;
-		// these are functions 
+		// the UI elements should only ever be called from the layout function since this pointer is only valid there
+		const Theme* currentTheme;
+		
+		// these are functions that create reusable UI elements
+		bool button(const char* label);
+		void playbar();
 	};
 }

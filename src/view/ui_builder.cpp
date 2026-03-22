@@ -3,101 +3,97 @@
 #include "theme.hpp"
 
 #include <clay.h>
-
 #include <tinydef.hpp>
-
 #include <stdio.h>
 
-namespace ctrl {
-	bool button(const char* contents) {
-		return true;
-	}
-
-	void playbar(const Theme& theme) {
-		CLAY({
-			.id = CLAY_ID("PlayBarContainer"),
-			.layout = { .sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(64) } },
-			.backgroundColor = {0, 0, 0, 200}, 
-			}) {
-		}
+//
+// CLAY HELPER FUNCTIONS
+//
+static void handle_clay_errors(Clay_ErrorData errorData) {
+	fprintf(stderr, "Clay Error! %s\n\t", errorData.errorText.chars);
+	switch (errorData.errorType) {
+	case CLAY_ERROR_TYPE_TEXT_MEASUREMENT_FUNCTION_NOT_PROVIDED:
+		fprintf(stderr, "Measurement function not provided.\n");
+		break;
+	case CLAY_ERROR_TYPE_ARENA_CAPACITY_EXCEEDED:
+		fprintf(stderr, "Memory arena capacity exceeded.\n");
+		break;
+	case CLAY_ERROR_TYPE_ELEMENTS_CAPACITY_EXCEEDED:
+		fprintf(stderr, "UI element memory capacity exceeded.\n");
+		break;
+	case CLAY_ERROR_TYPE_TEXT_MEASUREMENT_CAPACITY_EXCEEDED:
+		fprintf(stderr, "Text measurement capacity exceeded.\n");
+		break;
+	case CLAY_ERROR_TYPE_DUPLICATE_ID:
+		fprintf(stderr, "Duplicate UI element ID detected.\n");
+		break;
+	case CLAY_ERROR_TYPE_FLOATING_CONTAINER_PARENT_NOT_FOUND:
+		fprintf(stderr, "Could not find parent of floating container.\n");
+		break;
+	case CLAY_ERROR_TYPE_PERCENTAGE_OVER_1:
+		fprintf(stderr, "Percentage value over 1.0f was used.\n");
+		break;
+	case CLAY_ERROR_TYPE_INTERNAL_ERROR:
+		fprintf(stderr, "Internal error encountered.\n");
+		break;
 	}
 }
 
-namespace view {
-	static void handle_clay_errors(Clay_ErrorData errorData) {
-		fprintf(stderr, "Clay Error! %s\n\t", errorData.errorText.chars);
-		switch (errorData.errorType) {
-		case CLAY_ERROR_TYPE_TEXT_MEASUREMENT_FUNCTION_NOT_PROVIDED:
-			fprintf(stderr, "Measurement function not provided.\n");
-			break;
-		case CLAY_ERROR_TYPE_ARENA_CAPACITY_EXCEEDED:
-			fprintf(stderr, "Memory arena capacity exceeded.\n");
-			break;
-		case CLAY_ERROR_TYPE_ELEMENTS_CAPACITY_EXCEEDED:
-			fprintf(stderr, "UI element memory capacity exceeded.\n");
-			break;
-		case CLAY_ERROR_TYPE_TEXT_MEASUREMENT_CAPACITY_EXCEEDED:
-			fprintf(stderr, "Text measurement capacity exceeded.\n");
-			break;
-		case CLAY_ERROR_TYPE_DUPLICATE_ID:
-			fprintf(stderr, "Duplicate UI element ID detected.\n");
-			break;
-		case CLAY_ERROR_TYPE_FLOATING_CONTAINER_PARENT_NOT_FOUND:
-			fprintf(stderr, "Could not find parent of floating container.\n");
-			break;
-		case CLAY_ERROR_TYPE_PERCENTAGE_OVER_1:
-			fprintf(stderr, "Percentage value over 1.0f was used.\n");
-			break;
-		case CLAY_ERROR_TYPE_INTERNAL_ERROR:
-			fprintf(stderr, "Internal error encountered.\n");
-			break;
-		}
-	}
+static Clay_Dimensions measure_text(Clay_StringSlice text, Clay_TextElementConfig* config, void* userData) {
+	// default monospace text measure metrics
+	Clay_Dimensions dimensions = {
+		.width = static_cast<float>(text.length * config->fontSize),
+		.height = static_cast<float>(config->fontSize)
+	};
 
-	static Clay_Dimensions measure_text(Clay_StringSlice text, Clay_TextElementConfig* config, void* userData) {
-		// default monospace text measure metrics
-		Clay_Dimensions dimensions = {
-			.width = static_cast<float>(text.length * config->fontSize),
-			.height = static_cast<float>(config->fontSize)
-		};
-
-		if (!userData)
-			return dimensions;
-		
-		gfx::FontAtlas& fontAtlas = *reinterpret_cast<gfx::FontAtlas*>(userData);
-		if (config->fontId >= fontAtlas.numFonts)
-			return dimensions;
-
-		gfx::FontAtlas::FontMetrics& metrics = fontAtlas.metadata[config->fontId];
-		const f32 fontScale = static_cast<f32>(config->fontSize) / metrics.loadedFontSize;
-		f32 cursorX = 0, cursorY = config->fontSize + config->lineHeight;
-		dimensions.width = cursorX;
-		dimensions.height = cursorY;
-
-		for (i32 i = 0; i < text.length; i++) {
-			char current = text.chars[i];
-			if (current > gfx::FontAtlas::CHARS_PER_FONT)
-				continue;
-
-			if (current == '\n') {
-				cursorX = 0.0f;
-				cursorY += config->fontSize + config->lineHeight;
-			} else {
-				const stbtt_packedchar& packedChar = fontAtlas.packedChars.get(current, config->fontId);
-				cursorX += static_cast<f32>(config->letterSpacing) + (packedChar.xadvance * fontScale);
-			}
-
-			dimensions.width = tim::max(dimensions.width, cursorX);
-			dimensions.height = tim::max(dimensions.height, cursorY);
-		}
-
+	if (!userData)
 		return dimensions;
+
+	gfx::FontAtlas& fontAtlas = *reinterpret_cast<gfx::FontAtlas*>(userData);
+	if (config->fontId >= fontAtlas.numFonts)
+		return dimensions;
+
+	gfx::FontAtlas::FontMetrics& metrics = fontAtlas.metadata[config->fontId];
+	const f32 fontScale = static_cast<f32>(config->fontSize) / metrics.loadedFontSize;
+	f32 cursorX = 0, cursorY = config->fontSize;
+	dimensions.width = cursorX;
+	dimensions.height = cursorY;
+
+	for (i32 i = 0; i < text.length; i++) {
+		char current = text.chars[i];
+		if (current > gfx::FontAtlas::CHARS_PER_FONT)
+			continue;
+
+		if (current == '\n') {
+			cursorX = 0.0f;
+			cursorY += config->fontSize + config->lineHeight;
+		} else {
+			const stbtt_packedchar& packedChar = fontAtlas.packedChars.get(current, config->fontId);
+			cursorX += static_cast<f32>(config->letterSpacing) + (packedChar.xadvance * fontScale);
+		}
+
+		dimensions.width = tim::max(dimensions.width, cursorX);
+		dimensions.height = tim::max(dimensions.height, cursorY);
 	}
 
+	return dimensions;
+}
+
+Clay_Color to_clay_color(const gfx::Color& color) {
+	return Clay_Color{
+		.r = color.r * 255,
+		.g = color.g * 255,
+		.b = color.b * 255,
+		.a = color.a * 255,
+	};
+}
+
+namespace view {
 	void UiBuilder::init(const gfx::Window& window) {
 		u32 totalMemorySize = Clay_MinMemorySize();
 		Clay_Arena clayArena = Clay_CreateArenaWithCapacityAndMemory(totalMemorySize, malloc(totalMemorySize));
 		Clay_Initialize(clayArena, Clay_Dimensions { static_cast<f32>(window.width), static_cast<f32>(window.height) }, Clay_ErrorHandler {handle_clay_errors});
+		Clay_SetDebugModeEnabled(true);
 	}
 
 	void UiBuilder::load_textures(gfx::BakedAtlas::Packer& packer) {
@@ -119,14 +115,48 @@ namespace view {
 
 		Clay_BeginLayout();
 
-		CLAY({
-			.id = CLAY_ID("OuterContainer"),
-			.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0)}, .padding = CLAY_PADDING_ALL(16), .childGap = 16},
-			.backgroundColor = {100, 100, 100, 255}
-			}) {
-			CLAY_TEXT(CLAY_STRING("Hello! This is some test text!\nI am now testing some newlines!!!"), CLAY_TEXT_CONFIG({ .textColor = {255, 255, 255, 255}, .fontSize = 12 }));
-		}
+		currentTheme = &theme;
+
+		//CLAY({
+		//	.id = CLAY_ID("OuterContainer"),
+		//	.layout = {.sizing = {CLAY_SIZING_GROW(0), CLAY_SIZING_GROW(0)}, .padding = CLAY_PADDING_ALL(16), .childGap = 16, .childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}},
+		//	.backgroundColor = {100, 100, 100, 255}
+		//	}) {
+		//	CLAY_TEXT(CLAY_STRING("Hello! This is some test text!\nI am now testing some newlines!!!"), CLAY_TEXT_CONFIG({ .textColor = {255, 255, 255, 255}, .fontSize = 12 }));
+		//}
 
 		return Clay_EndLayout();
+	}
+
+	// 
+	bool UiBuilder::button(const char* label) {
+		Clay_String labelString = {
+			.isStaticallyAllocated = false,
+			.length = static_cast<i32>(strlen(label)),
+			.chars = label,
+		};
+
+		CLAY({
+			.id = CLAY_SID_LOCAL(labelString),
+			.layout = {
+				.sizing = {CLAY_SIZING_FIT(0), CLAY_SIZING_FIT(0)},
+				.padding = CLAY_PADDING_ALL(16),
+				.childGap = 16,
+				.childAlignment = {CLAY_ALIGN_X_CENTER, CLAY_ALIGN_Y_CENTER}
+			}, .backgroundColor = to_clay_color(currentTheme->element1)}) {
+
+			CLAY_TEXT(labelString, CLAY_TEXT_CONFIG({ .textColor = to_clay_color(currentTheme->text), .fontSize = 12}));
+		}
+
+		return true;
+	}
+
+	void UiBuilder::playbar() {
+		CLAY({
+			.id = CLAY_ID("PlayBarContainer"),
+			.layout = {.sizing = { CLAY_SIZING_GROW(0), CLAY_SIZING_FIXED(64) } },
+			.backgroundColor = {0, 0, 0, 200},
+			}) {
+		}
 	}
 }

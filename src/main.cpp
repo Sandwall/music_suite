@@ -87,6 +87,21 @@ int main(int argc, char** argv) {
 				const gfx::Color color = from_clay_color(renderCommand.renderData.border.color);
 
 				// as of right now if we have transparent borders, then the corner pixels will probably be 
+				if (color.a < 1.0)
+					renderer.render();
+
+				if (color.a > 0.0) {
+					const f32 left = static_cast<f32>(renderCommand.renderData.border.width.left);
+					const f32 right = static_cast<f32>(renderCommand.renderData.border.width.left);
+					const f32 top = static_cast<f32>(renderCommand.renderData.border.width.left);
+					const f32 bottom = static_cast<f32>(renderCommand.renderData.border.width.left);
+
+					renderer.add_rect(box.x, box.y, left, box.height, color);
+					renderer.add_rect(box.x + box.width - right, box.y, right, box.height, color);
+					renderer.add_rect(box.x, box.y, box.width, top, color);
+					renderer.add_rect(box.x, box.y + box.height - bottom, box.width, bottom, color);
+				}
+
 			} break;
 			case CLAY_RENDER_COMMAND_TYPE_IMAGE: {
 				const gfx::Color color = from_clay_color(renderCommand.renderData.image.backgroundColor);
@@ -103,8 +118,6 @@ int main(int argc, char** argv) {
 					renderer.add_tex(box.x, box.y, box.width, box.height, texId, color);
 			} break;
 			case CLAY_RENDER_COMMAND_TYPE_TEXT: {
-
-				// TODO: this is mega broken... need to figure out how to correctly size chars
 				const gfx::Color color = from_clay_color(renderCommand.renderData.text.textColor);
 				if (color.a == 0.0) break;
 
@@ -125,7 +138,8 @@ int main(int argc, char** argv) {
 				gfx::FontAtlas::FontMetrics& metrics = fontAtlas.metadata[id];
 				const f32 fontScale = static_cast<f32>(fontSize) / metrics.loadedFontSize;
 				f32 cursorX = box.x;
-				f32 cursorY = box.y;
+				f32 cursorY = box.y + (static_cast<f32>(metrics.ascent) * fontScale * metrics.vMetricsScale);
+				// adding this to account for the baseline
 
 				for (i32 i = 0; i < text.length; i++) {
 					char current = text.chars[i];
@@ -157,8 +171,7 @@ int main(int argc, char** argv) {
 			} break;
 			case CLAY_RENDER_COMMAND_TYPE_SCISSOR_START: {
 				// No need to render when starting a scissor, since rendering is done on scissor end
-				//renderer.render();
-
+				renderer.render();
 				renderer.scissor((i32)box.x, (i32)box.y, (i32)box.width, (i32)box.height);
 			} break;
 			case CLAY_RENDER_COMMAND_TYPE_SCISSOR_END: {
